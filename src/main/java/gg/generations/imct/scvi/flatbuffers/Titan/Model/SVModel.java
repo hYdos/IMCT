@@ -40,6 +40,9 @@ public class SVModel implements Model {
             meshData.add(meshD);
         }
 
+        // Process extra material variants (shiny)
+        var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
+
         // Process material data
         var material = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
         for (int i = 0; i < material.materialsLength(); i++) {
@@ -87,6 +90,7 @@ public class SVModel implements Model {
             for (var j = 0; j < idxBuffer.bufferLength() / idxLayout.size; j++) {
                 switch (idxLayout) {
                     case UINT16 -> indices.add(realIdxBuffer.getShort() & 0xFFFF);
+                    case UINT32 -> indices.add(realIdxBuffer.getInt() & 0xFFFFFFFF);
                     default -> throw new RuntimeException("no");
                 }
             }
@@ -188,8 +192,7 @@ public class SVModel implements Model {
 
             for (var value : materials.values()) {
                 sceneMaterials.put(value, MaterialBuilder.create()
-                        .setBaseColorFactor(1.0f, 0.9f, 0.9f, 1.0f)
-                        .setBaseColorTexture("file:///" + value.textures().get(0).filePath().replace("\\", "/"), "image/png", 0)
+                        .setBaseColorTexture("file:///" + value.getTexture("BaseColorMap").filePath().replace("\\", "/"), "image/png", 0)
                         .setDoubleSided(true)
                         .build());
             }
@@ -227,6 +230,11 @@ public class SVModel implements Model {
             String name,
             List<Texture> textures
     ) {
+
+        public Texture getTexture(String type) {
+            for (var texture : textures) if (texture.type.equals(type)) return texture;
+            throw new RuntimeException("Texture of type " + type + " doesn't exist");
+        }
     }
 
     private record Texture(
