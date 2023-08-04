@@ -1,5 +1,6 @@
 plugins {
-    id("java")
+    java
+    idea
 }
 
 group = "gg.generations"
@@ -18,5 +19,5 @@ dependencies {
     implementation("de.javagl:jgltf-obj:2.0.3")
     implementation("de.javagl:jgltf-model-builder:2.0.3")
 
-    implementation("com.google.flatbuffers", "flatbuffers-java", "23.3.3")
+    implementation("com.google.flatbuffers", "flatbuffers-java", "23.5.26")
 }
