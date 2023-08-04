@@ -41,7 +41,7 @@ public class SVModel implements Model {
         }
 
         // Process extra material variants (shiny)
-        var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
+        //var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
 
         // Process material data
         var material = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
@@ -49,6 +49,25 @@ public class SVModel implements Model {
             var rawMaterial = material.materials(i);
             var textures = new ArrayList<Texture>();
             var materialName = rawMaterial.name();
+            var shader = rawMaterial.shaders(0).shaderName();
+
+            if(!shader.equals("SSS")) {
+                if (shader.equals("EyeClearCoat")) {
+                    System.out.println("Material Properties");
+                    for (int j = 0; j < rawMaterial.float4ParameterLength(); j++) {
+                        var colorParam = rawMaterial.float4Parameter(j);
+                        System.out.println("Name: " + colorParam.colorName());
+                        System.out.println("R: " + colorParam.colorValue().r() * 255);
+                        System.out.println("G: " + colorParam.colorValue().g() * 255);
+                        System.out.println("B: " + colorParam.colorValue().b() * 255);
+                        System.out.println("A: " + colorParam.colorValue().a() * 255);
+                    }
+
+                    System.out.println();
+                } else {
+                    throw new RuntimeException("Unknown shader " + shader);
+                }
+            }
 
             for (int j = 0; j < rawMaterial.texturesLength(); j++) {
                 var rawTexture = rawMaterial.textures(j);
@@ -108,6 +127,17 @@ public class SVModel implements Model {
                                 positions.add(new Vector3f(x, y, z));
                             } else {
                                 throw new RuntimeException("Unexpected position format: " + attribute.type);
+                            }
+                        }
+
+                        case COLOR -> {
+                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNORM) {
+                                var x = vertexBuffer.get() & 0xFF;
+                                var y = vertexBuffer.get() & 0xFF;
+                                var z = vertexBuffer.get() & 0xFF;
+                                var w = vertexBuffer.get() & 0xFF;
+                            } else {
+                                throw new RuntimeException("Unexpected color format: " + attribute.type);
                             }
                         }
 
