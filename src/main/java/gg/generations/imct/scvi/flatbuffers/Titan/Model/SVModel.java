@@ -155,7 +155,8 @@ public class SVModel implements Model {
             for (int j = 0; j < info.materialsLength(); j++) {
                 var subMesh = info.materials(j);
                 var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
-                meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), subIdxBuffer, positions, normals, tangents, binormals, uvs));
+                if (!Objects.requireNonNull(info.meshName()).contains("lod"))
+                    meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), subIdxBuffer, positions, normals, tangents, binormals, uvs));
             }
         }
     }
@@ -219,6 +220,8 @@ public class SVModel implements Model {
         public MeshPrimitiveBuilder create() {
             return MeshPrimitiveBuilder.create()
                     .setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
+                    .addNormals3D(toBuffer3(normals))
+                    .addTexCoords02D(toBuffer2(uvs))
                     .addPositions3D(toBuffer3(positions))
                     .setTriangles();
         }
