@@ -4,6 +4,7 @@ import gg.generations.imct.intermediate.Model;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +15,7 @@ public class SVModel implements Model {
     private final List<Mesh> meshes = new ArrayList<>();
     private final List<TRMTR> materials = new ArrayList<>();
 
+    @SuppressWarnings("PointlessBitwiseExpression")
     public SVModel(Path modelDir) {
         // Read Data
         var meshInfo = new ArrayList<TRMSH>();
@@ -53,24 +55,87 @@ public class SVModel implements Model {
 
             var positions = new ArrayList<Vector3f>();
             var normals = new ArrayList<Vector3f>();
+            var tangents = new ArrayList<Vector3f>();
+            var binormals = new ArrayList<Vector3f>();
             var uvs = new ArrayList<Vector2f>();
 
             for (var attribute : attributes) {
                 switch (attribute.type) {
                     case POSITION -> {
-                        switch (attribute.size) {
-                            case X32_Y32_Z32_FLOAT -> {
-                                System.out.println("yes");
-                            }
-                            default -> throw new RuntimeException("Unknown position format: " + attribute.type);
+                        if (Objects.requireNonNull(attribute.size) == AttributeSize.X32_Y32_Z32_FLOAT) {
+                            var x = vertexBuffer.getFloat();
+                            var y = vertexBuffer.getFloat();
+                            var z = vertexBuffer.getFloat();
+                            positions.add(new Vector3f(x, y, z));
+                        } else {
+                            throw new RuntimeException("Unexpected position format: " + attribute.type);
                         }
                     }
-                    default -> {}//throw new IllegalStateException("Unexpected value: " + attribute);
+
+                    case NORMAL -> {
+                        if (Objects.requireNonNull(attribute.size) == AttributeSize.W16_X16_Y16_Z16_FLOAT) {
+                            normals.add(readW16X16Y16Z16Float(vertexBuffer));
+                        } else {
+                            throw new RuntimeException("Unexpected normal format: " + attribute.type);
+                        }
+                    }
+
+                    case TANGENT -> {
+                        if (Objects.requireNonNull(attribute.size) == AttributeSize.W16_X16_Y16_Z16_FLOAT) {
+                            tangents.add(readW16X16Y16Z16Float(vertexBuffer));
+                        } else {
+                            throw new RuntimeException("Unexpected tangent format: " + attribute.type);
+                        }
+                    }
+
+                    case TEXCOORD -> {
+                        if (Objects.requireNonNull(attribute.size) == AttributeSize.X32_Y32_FLOAT) {
+                            var x = vertexBuffer.getFloat();
+                            var y = vertexBuffer.getFloat();
+                            uvs.add(new Vector2f(x, y));
+                        } else {
+                            throw new RuntimeException("Unexpected uv format: " + attribute.type);
+                        }
+                    }
+
+                    case BLEND_INDICES -> {
+                        if (Objects.requireNonNull(attribute.size) == AttributeSize.W8_X8_Y8_Z8_UNSIGNED) {
+                            var w = vertexBuffer.getInt() & 0xFFFFFFFF;
+                            var x = vertexBuffer.getInt() & 0xFFFFFFFF;
+                            var y = vertexBuffer.getInt() & 0xFFFFFFFF;
+                            var z = vertexBuffer.getInt() & 0xFFFFFFFF;
+                            // TODO: add these
+                        } else {
+                            throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
+                        }
+                    }
+
+                    case BLEND_WEIGHTS -> {
+                        if (Objects.requireNonNull(attribute.size) == AttributeSize.W16_X16_Y16_Z16_SIGNED_NORMALIZED) {
+                            var w = vertexBuffer.getShort();
+                            var x = vertexBuffer.getShort();
+                            var y = vertexBuffer.getShort();
+                            var z = vertexBuffer.getShort();
+                            // TODO: add these
+                        } else {
+                            throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
+                        }
+                    }
+
+                    default -> throw new IllegalStateException("Unexpected value: " + attribute);
                 }
             }
 
-            meshes.add(new Mesh(positions, normals, uvs));
+            meshes.add(new Mesh(positions, normals, tangents, binormals, uvs));
         }
+    }
+
+    private static Vector3f readW16X16Y16Z16Float(ByteBuffer buf) {
+        var w = Model.halfFloatToFloat(buf.getShort()); // Ignored. Maybe padding?
+        var x = Model.halfFloatToFloat(buf.getShort());
+        var y = Model.halfFloatToFloat(buf.getShort());
+        var z = Model.halfFloatToFloat(buf.getShort());
+        return new Vector3f(x, y, z);
     }
 
     @Override
@@ -81,13 +146,15 @@ public class SVModel implements Model {
     private record Mesh(
             List<Vector3f> positions,
             List<Vector3f> normals,
+            List<Vector3f> tangents,
+            List<Vector3f> biNormals,
             List<Vector2f> uvs
     ) {
     }
 
     private record Attribute(
-        AttributeType type,
-        AttributeSize size
+            AttributeType type,
+            AttributeSize size
     ) {
     }
 
