@@ -218,10 +218,21 @@ public class SVModel implements Model {
     ) {
         public MeshPrimitiveBuilder create() {
             return MeshPrimitiveBuilder.create()
-                    .setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
-                    .addPositions3D(vec3fListToBuffer(positions))
-                    .setTriangles();
+                    .setIntIndices(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
+                    .addNormals3D(vec3fListToBuffer(normals))
+                    .addTexCoords02D(vec2fListToBuffer(uvs))
+                    .addPositions3D(vec3fListToBuffer(positions));
         }
+    }
+
+    private static FloatBuffer vec2fListToBuffer(List<Vector2f> list) {
+        var buffer = FloatBuffer.wrap(new float[list.size() * 3]);
+        for (var element : list)
+            buffer
+                    .put(element.x)
+                    .put(element.y);
+
+        return buffer;
     }
 
     private static FloatBuffer vec3fListToBuffer(List<Vector3f> list) {
