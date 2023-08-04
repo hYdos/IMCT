@@ -15,7 +15,6 @@ public class SVModel implements Model {
     private final List<Mesh> meshes = new ArrayList<>();
     private final List<TRMTR> materials = new ArrayList<>();
 
-    @SuppressWarnings("PointlessBitwiseExpression")
     public SVModel(Path modelDir) {
         // Read Data
         var meshInfo = new ArrayList<TRMSH>();
@@ -40,12 +39,14 @@ public class SVModel implements Model {
         // Process data
         for (var i = 0; i < meshInfo.size(); i++) {
             System.out.println("Processing Mesh " + i);
-            var rawAttributes = meshInfo.get(i).meshes(0).attributes(0);
+            var info = meshInfo.get(i).meshes(0);
+            var idxLayout = IndexLayout.get((int) info.polygonType());
+            var rawAttributes = info.attributes(0);
             var data = meshData.get(i).buffers(0);
             var vertexBuffer = data.vertexBuffer(0).bufferAsByteBuffer();
             var idxBuffer = data.indexBuffer(0);
-            var attributes = new ArrayList<Attribute>();
 
+            var attributes = new ArrayList<Attribute>();
             for (var j = 0; j < rawAttributes.attrsLength(); j++) {
                 attributes.add(new Attribute(
                         AttributeType.get(rawAttributes.attrs(j).attribute()),
@@ -53,80 +54,90 @@ public class SVModel implements Model {
                 ));
             }
 
+            var indices = new ArrayList<Integer>();
             var positions = new ArrayList<Vector3f>();
             var normals = new ArrayList<Vector3f>();
             var tangents = new ArrayList<Vector3f>();
             var binormals = new ArrayList<Vector3f>();
             var uvs = new ArrayList<Vector2f>();
 
-            for (var attribute : attributes) {
-                switch (attribute.type) {
-                    case POSITION -> {
-                        if (Objects.requireNonNull(attribute.size) == AttributeSize.X32_Y32_Z32_FLOAT) {
-                            var x = vertexBuffer.getFloat();
-                            var y = vertexBuffer.getFloat();
-                            var z = vertexBuffer.getFloat();
-                            positions.add(new Vector3f(x, y, z));
-                        } else {
-                            throw new RuntimeException("Unexpected position format: " + attribute.type);
-                        }
-                    }
-
-                    case NORMAL -> {
-                        if (Objects.requireNonNull(attribute.size) == AttributeSize.W16_X16_Y16_Z16_FLOAT) {
-                            normals.add(readW16X16Y16Z16Float(vertexBuffer));
-                        } else {
-                            throw new RuntimeException("Unexpected normal format: " + attribute.type);
-                        }
-                    }
-
-                    case TANGENT -> {
-                        if (Objects.requireNonNull(attribute.size) == AttributeSize.W16_X16_Y16_Z16_FLOAT) {
-                            tangents.add(readW16X16Y16Z16Float(vertexBuffer));
-                        } else {
-                            throw new RuntimeException("Unexpected tangent format: " + attribute.type);
-                        }
-                    }
-
-                    case TEXCOORD -> {
-                        if (Objects.requireNonNull(attribute.size) == AttributeSize.X32_Y32_FLOAT) {
-                            var x = vertexBuffer.getFloat();
-                            var y = vertexBuffer.getFloat();
-                            uvs.add(new Vector2f(x, y));
-                        } else {
-                            throw new RuntimeException("Unexpected uv format: " + attribute.type);
-                        }
-                    }
-
-                    case BLEND_INDICES -> {
-                        if (Objects.requireNonNull(attribute.size) == AttributeSize.W8_X8_Y8_Z8_UNSIGNED) {
-                            var w = vertexBuffer.getInt() & 0xFFFFFFFF;
-                            var x = vertexBuffer.getInt() & 0xFFFFFFFF;
-                            var y = vertexBuffer.getInt() & 0xFFFFFFFF;
-                            var z = vertexBuffer.getInt() & 0xFFFFFFFF;
-                            // TODO: add these
-                        } else {
-                            throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
-                        }
-                    }
-
-                    case BLEND_WEIGHTS -> {
-                        if (Objects.requireNonNull(attribute.size) == AttributeSize.W16_X16_Y16_Z16_SIGNED_NORMALIZED) {
-                            var w = vertexBuffer.getShort();
-                            var x = vertexBuffer.getShort();
-                            var y = vertexBuffer.getShort();
-                            var z = vertexBuffer.getShort();
-                            // TODO: add these
-                        } else {
-                            throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
-                        }
-                    }
-
-                    default -> throw new IllegalStateException("Unexpected value: " + attribute);
+            var realIdxBuffer = idxBuffer.bufferAsByteBuffer();
+            for (int j = 0; j < idxBuffer.bufferLength() / idxLayout.size; j++) {
+                switch (idxLayout) {
+                    case UINT16 -> indices.add(realIdxBuffer.getShort() & 0xFFFF);
+                    default -> throw new RuntimeException("no");
                 }
             }
 
-            meshes.add(new Mesh(positions, normals, tangents, binormals, uvs));
+            var vertexCount = info.attributes(0).size(0).size();
+
+            for (int j = 0; j < vertexCount; j++) {
+                for (var attribute : attributes) {
+                    switch (attribute.type) {
+                        case POSITION -> {
+                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGB_32_FLOAT) {
+                                var x = vertexBuffer.getFloat();
+                                var y = vertexBuffer.getFloat();
+                                var z = vertexBuffer.getFloat();
+                                positions.add(new Vector3f(x, y, z));
+                            } else {
+                                throw new RuntimeException("Unexpected position format: " + attribute.type);
+                            }
+                        }
+
+                        case NORMAL -> {
+                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
+                                normals.add(readW16X16Y16Z16Float(vertexBuffer));
+                            } else {
+                                throw new RuntimeException("Unexpected normal format: " + attribute.type);
+                            }
+                        }
+
+                        case TANGENT -> {
+                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
+                                tangents.add(readW16X16Y16Z16Float(vertexBuffer));
+                            } else {
+                                throw new RuntimeException("Unexpected tangent format: " + attribute.type);
+                            }
+                        }
+
+                        case TEXCOORD -> {
+                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RG_32_FLOAT) {
+                                var x = vertexBuffer.getFloat();
+                                var y = vertexBuffer.getFloat();
+                                uvs.add(new Vector2f(x, y));
+                            } else {
+                                throw new RuntimeException("Unexpected uv format: " + attribute.type);
+                            }
+                        }
+
+                        case BLEND_INDICES -> {
+                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNSIGNED) {
+                                readW16X16Y16Z16Float(vertexBuffer);
+                                // TODO: add these
+                            } else {
+                                throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
+                            }
+                        }
+
+                        case BLEND_WEIGHTS -> {
+                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_UNORM) {
+                                var w = vertexBuffer.getShort();
+                                var x = vertexBuffer.getShort();
+                                var y = vertexBuffer.getShort();
+                                var z = vertexBuffer.getShort();
+                                // TODO: add these
+                            } else {
+                                throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
+                            }
+                        }
+
+                        default -> throw new IllegalStateException("Unexpected value: " + attribute);
+                    }
+                }
+            }
+
+            meshes.add(new Mesh(indices, positions, normals, tangents, binormals, uvs));
         }
     }
 
@@ -144,6 +155,7 @@ public class SVModel implements Model {
     }
 
     private record Mesh(
+            List<Integer> indices,
             List<Vector3f> positions,
             List<Vector3f> normals,
             List<Vector3f> tangents,
@@ -176,26 +188,45 @@ public class SVModel implements Model {
     }
 
     private enum AttributeSize {
-        NONE(0),
-        R8_G8_B8_A8_UNSIGNED_NORMALIZED(20),
-        W8_X8_Y8_Z8_UNSIGNED(22),
-        X32_UINT(36),
-        X32_INT(37),
-        W16_X16_Y16_Z16_SIGNED_NORMALIZED(39),
-        W16_X16_Y16_Z16_FLOAT(43),
-        X32_Y32_FLOAT(48),
-        X32_Y32_Z32_FLOAT(51),
-        W32_X32_Y32_Z32_FLOAT(54);
+        NONE(0, 0),
+        RGBA_8_UNORM(20, Byte.BYTES * 4),
+        RGBA_8_UNSIGNED(22, Byte.BYTES * 4),
+        X32_UINT(36, Integer.BYTES),
+        X32_INT(37, Integer.BYTES),
+        RGBA_16_UNORM(39, Short.BYTES * 4),
+        RGBA_16_FLOAT(43, Short.BYTES * 4),
+        RG_32_FLOAT(48, Float.BYTES * 2),
+        RGB_32_FLOAT(51, Float.BYTES * 3),
+        RGBA_32_FLOAT(54, Float.BYTES * 4);
 
         private final int id;
+        public final int size;
 
-        AttributeSize(int id) {
+        AttributeSize(int id, int size) {
             this.id = id;
+            this.size = size;
         }
 
         public static AttributeSize get(long id) {
             for (var value : values()) if (value.id == id) return value;
             throw new RuntimeException("Unknown Attribute Size " + id);
+        }
+    }
+
+    private enum IndexLayout {
+        UINT8(Byte.BYTES),
+        UINT16(Short.BYTES),
+        UINT32(Integer.BYTES),
+        UINT64(Long.BYTES);
+
+        public final int size;
+
+        IndexLayout(int size) {
+            this.size = size;
+        }
+
+        public static IndexLayout get(int i) {
+            return values()[i];
         }
     }
 }
