@@ -124,10 +124,10 @@ public class SVModel implements Model {
 
                         case BLEND_INDICES -> {
                             if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNSIGNED) {
-                                var w = vertexBuffer.get();
                                 var x = vertexBuffer.get();
                                 var y = vertexBuffer.get();
                                 var z = vertexBuffer.get();
+                                var w = vertexBuffer.get();
                                 // TODO: add these
                             } else {
                                 throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
@@ -136,10 +136,10 @@ public class SVModel implements Model {
 
                         case BLEND_WEIGHTS -> {
                             if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_UNORM) {
-                                var w = vertexBuffer.getShort();
                                 var x = vertexBuffer.getShort();
                                 var y = vertexBuffer.getShort();
                                 var z = vertexBuffer.getShort();
+                                var w = vertexBuffer.getShort();
                                 // TODO: add these
                             } else {
                                 throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
@@ -155,7 +155,7 @@ public class SVModel implements Model {
             for (int j = 0; j < info.materialsLength(); j++) {
                 var subMesh = info.materials(j);
                 var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
-                meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), subIdxBuffer, positions, normals, tangents, binormals, uvs));
+                if(!info.meshName().contains("lod"))meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), subIdxBuffer, positions, normals, tangents, binormals, uvs));
             }
         }
     }
