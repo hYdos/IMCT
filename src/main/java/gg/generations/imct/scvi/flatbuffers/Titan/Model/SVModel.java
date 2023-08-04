@@ -7,6 +7,7 @@ import de.javagl.jgltf.model.impl.DefaultMeshModel;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import de.javagl.jgltf.model.impl.DefaultSceneModel;
 import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
+import de.javagl.jgltf.model.v2.MaterialModelV2;
 import gg.generations.imct.intermediate.Model;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
@@ -17,20 +18,17 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class SVModel implements Model {
 
     private final List<Mesh> meshes = new ArrayList<>();
-    private final List<TRMTR> materials = new ArrayList<>();
+    private final Map<String, Material> materials = new HashMap<>();
 
     public SVModel(Path modelDir) {
         // Read Data
         var meshInfo = new ArrayList<TRMSH>();
         var meshData = new ArrayList<TRMBF>();
-        var materials = new ArrayList<TRMTR>();
         var trmdl = TRMDL.getRootAsTRMDL(read(modelDir.resolve(modelDir.getFileName() + ".trmdl")));
         var trskl = TRSKL.getRootAsTRSKL(read(modelDir.resolve(modelDir.getFileName() + ".trskl")));
 
@@ -42,12 +40,25 @@ public class SVModel implements Model {
             meshData.add(meshD);
         }
 
-        for (var i = 0; i < trmdl.materialsLength(); i++) {
-            var material = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(i), "Material name was null"))));
-            materials.add(material);
+        // Process material data
+        var material = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
+        for (int i = 0; i < material.materialsLength(); i++) {
+            var rawMaterial = material.materials(i);
+            var textures = new ArrayList<Texture>();
+            var materialName = rawMaterial.name();
+
+            for (int j = 0; j < rawMaterial.texturesLength(); j++) {
+                var rawTexture = rawMaterial.textures(j);
+                textures.add(new Texture(rawTexture.textureName(), modelDir.resolve(rawTexture.textureFile().replace(".bntx", ".png")).toAbsolutePath().toString()));
+            }
+
+            materials.put(materialName, new Material(
+                    materialName,
+                    textures
+            ));
         }
 
-        // Process data
+        // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
             System.out.println("Processing Mesh " + i);
             var info = meshInfo.get(i).meshes(0);
@@ -98,7 +109,7 @@ public class SVModel implements Model {
 
                         case NORMAL -> {
                             if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
-                                normals.add(readW16X16Y16Z16Float(vertexBuffer));
+                                normals.add(readRGBA16Float(vertexBuffer));
                             } else {
                                 throw new RuntimeException("Unexpected normal format: " + attribute.type);
                             }
@@ -106,7 +117,7 @@ public class SVModel implements Model {
 
                         case TANGENT -> {
                             if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
-                                tangents.add(readW16X16Y16Z16Float(vertexBuffer));
+                                tangents.add(readRGBA16Float(vertexBuffer));
                             } else {
                                 throw new RuntimeException("Unexpected tangent format: " + attribute.type);
                             }
@@ -156,12 +167,12 @@ public class SVModel implements Model {
                 var subMesh = info.materials(j);
                 var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
                 if (!Objects.requireNonNull(info.meshName()).contains("lod"))
-                    meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), subIdxBuffer, positions, normals, tangents, binormals, uvs));
+                    meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, binormals, uvs));
             }
         }
     }
 
-    private static Vector3f readW16X16Y16Z16Float(ByteBuffer buf) {
+    private static Vector3f readRGBA16Float(ByteBuffer buf) {
         var x = Model.halfFloatToFloat(buf.getShort()); // Ignored. Maybe padding?
         var y = Model.halfFloatToFloat(buf.getShort());
         var z = Model.halfFloatToFloat(buf.getShort());
@@ -173,17 +184,21 @@ public class SVModel implements Model {
     public void writeModel(Path path) {
         try {
             var sceneModel = new DefaultSceneModel();
-            var materialModel = MaterialBuilder.create()
-                    .setBaseColorFactor(1.0f, 0.9f, 0.9f, 1.0f)
-                    .setDoubleSided(true)
-                    .build();
+            var sceneMaterials = new HashMap<Material, MaterialModelV2>();
 
+            for (var value : materials.values()) {
+                sceneMaterials.put(value, MaterialBuilder.create()
+                        .setBaseColorFactor(1.0f, 0.9f, 0.9f, 1.0f)
+                        .setBaseColorTexture("file:///" + value.textures().get(0).filePath().replace("\\", "/"), "image/png", 0)
+                        .setDoubleSided(true)
+                        .build());
+            }
 
             for (var mesh : meshes) {
                 var meshModel = new DefaultMeshModel();
                 var meshPrimitiveModel = mesh.create().build();
 
-                meshPrimitiveModel.setMaterialModel(materialModel);
+                meshPrimitiveModel.setMaterialModel(sceneMaterials.get(mesh.material));
                 meshModel.addMeshPrimitiveModel(meshPrimitiveModel);
 
                 // Create a node with the mesh
@@ -208,8 +223,21 @@ public class SVModel implements Model {
         }
     }
 
+    private record Material(
+            String name,
+            List<Texture> textures
+    ) {
+    }
+
+    private record Texture(
+            String type,
+            String filePath
+    ) {
+    }
+
     private record Mesh(
             String name,
+            Material material,
             List<Integer> indices,
             List<Vector3f> positions,
             List<Vector3f> normals,
