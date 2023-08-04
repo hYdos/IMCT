@@ -82,126 +82,131 @@ public class SVModel implements Model {
 
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
-            System.out.println("Processing Mesh " + i);
-            var info = meshInfo.get(i).meshes(0);
-            var idxLayout = IndexLayout.get((int) info.polygonType());
-            var rawAttributes = info.attributes(0);
-            var data = meshData.get(i).buffers(0);
-            var vertexBuffer = data.vertexBuffer(0).bufferAsByteBuffer();
-            var idxBuffer = data.indexBuffer(0);
+            System.out.println("Processing Mesh Info " + i);
+            for (int mesh = 0; mesh < meshInfo.get(i).meshesLength(); mesh++) {
+                System.out.println("Processing Mesh " + i);
+                var info = meshInfo.get(i).meshes(mesh);
+                var data = meshData.get(i).buffers(mesh);
+                var vertexBuffer = data.vertexBuffer(0).bufferAsByteBuffer();
+                var idxBuffer = data.indexBuffer(0);
 
-            var attributes = new ArrayList<Attribute>();
-            for (var j = 0; j < rawAttributes.attrsLength(); j++) {
-                attributes.add(new Attribute(
-                        AttributeType.get(rawAttributes.attrs(j).attribute()),
-                        AttributeSize.get(rawAttributes.attrs(j).type())
-                ));
-            }
+                var idxLayout = IndexLayout.get((int) info.polygonType());
+                var rawAttributes = info.attributes(0);
 
-            var indices = new ArrayList<Integer>();
-            var positions = new ArrayList<Vector3f>();
-            var normals = new ArrayList<Vector3f>();
-            var tangents = new ArrayList<Vector3f>();
-            var binormals = new ArrayList<Vector3f>();
-            var uvs = new ArrayList<Vector2f>();
 
-            var realIdxBuffer = idxBuffer.bufferAsByteBuffer();
-            for (var j = 0; j < idxBuffer.bufferLength() / idxLayout.size; j++) {
-                switch (idxLayout) {
-                    case UINT16 -> indices.add(realIdxBuffer.getShort() & 0xFFFF);
-                    case UINT32 -> indices.add(realIdxBuffer.getInt() & 0xFFFFFFFF);
-                    default -> throw new RuntimeException("no");
+                var attributes = new ArrayList<Attribute>();
+                for (var j = 0; j < rawAttributes.attrsLength(); j++) {
+                    attributes.add(new Attribute(
+                            AttributeType.get(rawAttributes.attrs(j).attribute()),
+                            AttributeSize.get(rawAttributes.attrs(j).type())
+                    ));
                 }
-            }
 
-            var vertexCount = data.vertexBuffer(0).bufferLength() / info.attributes(0).size(0).size();
+                var indices = new ArrayList<Integer>();
+                var positions = new ArrayList<Vector3f>();
+                var normals = new ArrayList<Vector3f>();
+                var tangents = new ArrayList<Vector3f>();
+                var binormals = new ArrayList<Vector3f>();
+                var uvs = new ArrayList<Vector2f>();
 
-            for (var j = 0; j < vertexCount; j++) {
-                for (var attribute : attributes) {
-                    switch (attribute.type) {
-                        case POSITION -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGB_32_FLOAT) {
-                                var x = vertexBuffer.getFloat();
-                                var y = vertexBuffer.getFloat();
-                                var z = vertexBuffer.getFloat();
-                                positions.add(new Vector3f(x, y, z));
-                            } else {
-                                throw new RuntimeException("Unexpected position format: " + attribute.type);
-                            }
-                        }
-
-                        case COLOR -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNORM) {
-                                var x = vertexBuffer.get() & 0xFF;
-                                var y = vertexBuffer.get() & 0xFF;
-                                var z = vertexBuffer.get() & 0xFF;
-                                var w = vertexBuffer.get() & 0xFF;
-                            } else {
-                                throw new RuntimeException("Unexpected color format: " + attribute.type);
-                            }
-                        }
-
-                        case NORMAL -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
-                                normals.add(readRGBA16Float(vertexBuffer));
-                            } else {
-                                throw new RuntimeException("Unexpected normal format: " + attribute.type);
-                            }
-                        }
-
-                        case TANGENT -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
-                                tangents.add(readRGBA16Float(vertexBuffer));
-                            } else {
-                                throw new RuntimeException("Unexpected tangent format: " + attribute.type);
-                            }
-                        }
-
-                        case TEXCOORD -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RG_32_FLOAT) {
-                                var x = vertexBuffer.getFloat();
-                                var y = 1.0f - vertexBuffer.getFloat();
-                                uvs.add(new Vector2f(x, y));
-                            } else {
-                                throw new RuntimeException("Unexpected uv format: " + attribute.type);
-                            }
-                        }
-
-                        case BLEND_INDICES -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNSIGNED) {
-                                var w = vertexBuffer.get();
-                                var x = vertexBuffer.get();
-                                var y = vertexBuffer.get();
-                                var z = vertexBuffer.get();
-                                // TODO: add these
-                            } else {
-                                throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
-                            }
-                        }
-
-                        case BLEND_WEIGHTS -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_UNORM) {
-                                var w = vertexBuffer.getShort();
-                                var x = vertexBuffer.getShort();
-                                var y = vertexBuffer.getShort();
-                                var z = vertexBuffer.getShort();
-                                // TODO: add these
-                            } else {
-                                throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
-                            }
-                        }
-
-                        default -> throw new IllegalStateException("Unexpected value: " + attribute);
+                var realIdxBuffer = idxBuffer.bufferAsByteBuffer();
+                for (var j = 0; j < idxBuffer.bufferLength() / idxLayout.size; j++) {
+                    switch (idxLayout) {
+                        case UINT16 -> indices.add(realIdxBuffer.getShort() & 0xFFFF);
+                        case UINT32 -> indices.add(realIdxBuffer.getInt() & 0xFFFFFFFF);
+                        default -> throw new RuntimeException("no");
                     }
                 }
-            }
 
-            // Sub meshes
-            for (int j = 0; j < info.materialsLength(); j++) {
-                var subMesh = info.materials(j);
-                var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
-                if (!Objects.requireNonNull(info.meshName()).contains("lod"))
-                    meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, binormals, uvs));
+                var vertexCount = data.vertexBuffer(0).bufferLength() / info.attributes(0).size(0).size();
+
+                for (var j = 0; j < vertexCount; j++) {
+                    for (var attribute : attributes) {
+                        switch (attribute.type) {
+                            case POSITION -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGB_32_FLOAT) {
+                                    var x = vertexBuffer.getFloat();
+                                    var y = vertexBuffer.getFloat();
+                                    var z = vertexBuffer.getFloat();
+                                    positions.add(new Vector3f(x, y, z));
+                                } else {
+                                    throw new RuntimeException("Unexpected position format: " + attribute.type);
+                                }
+                            }
+
+                            case COLOR -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNORM) {
+                                    var x = vertexBuffer.get() & 0xFF;
+                                    var y = vertexBuffer.get() & 0xFF;
+                                    var z = vertexBuffer.get() & 0xFF;
+                                    var w = vertexBuffer.get() & 0xFF;
+                                } else {
+                                    throw new RuntimeException("Unexpected color format: " + attribute.type);
+                                }
+                            }
+
+                            case NORMAL -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
+                                    normals.add(readRGBA16Float(vertexBuffer));
+                                } else {
+                                    throw new RuntimeException("Unexpected normal format: " + attribute.type);
+                                }
+                            }
+
+                            case TANGENT -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
+                                    tangents.add(readRGBA16Float(vertexBuffer));
+                                } else {
+                                    throw new RuntimeException("Unexpected tangent format: " + attribute.type);
+                                }
+                            }
+
+                            case TEXCOORD -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RG_32_FLOAT) {
+                                    var x = vertexBuffer.getFloat();
+                                    var y = 1.0f - vertexBuffer.getFloat();
+                                    uvs.add(new Vector2f(x, y));
+                                } else {
+                                    throw new RuntimeException("Unexpected uv format: " + attribute.type);
+                                }
+                            }
+
+                            case BLEND_INDICES -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNSIGNED) {
+                                    var w = vertexBuffer.get();
+                                    var x = vertexBuffer.get();
+                                    var y = vertexBuffer.get();
+                                    var z = vertexBuffer.get();
+                                    // TODO: add these
+                                } else {
+                                    throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
+                                }
+                            }
+
+                            case BLEND_WEIGHTS -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_UNORM) {
+                                    var w = vertexBuffer.getShort();
+                                    var x = vertexBuffer.getShort();
+                                    var y = vertexBuffer.getShort();
+                                    var z = vertexBuffer.getShort();
+                                    // TODO: add these
+                                } else {
+                                    throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
+                                }
+                            }
+
+                            default -> throw new IllegalStateException("Unexpected value: " + attribute);
+                        }
+                    }
+                }
+
+                // Sub meshes
+                for (int j = 0; j < info.materialsLength(); j++) {
+                    var subMesh = info.materials(j);
+                    var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
+                    if (!Objects.requireNonNull(info.meshName()).contains("lod"))
+                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, binormals, uvs));
+                }
             }
         }
     }
