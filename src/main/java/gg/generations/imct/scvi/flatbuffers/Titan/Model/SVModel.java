@@ -161,10 +161,10 @@ public class SVModel implements Model {
     }
 
     private static Vector3f readW16X16Y16Z16Float(ByteBuffer buf) {
-        var w = Model.halfFloatToFloat(buf.getShort()); // Ignored. Maybe padding?
-        var x = Model.halfFloatToFloat(buf.getShort());
+        var x = Model.halfFloatToFloat(buf.getShort()); // Ignored. Maybe padding?
         var y = Model.halfFloatToFloat(buf.getShort());
         var z = Model.halfFloatToFloat(buf.getShort());
+        var w = Model.halfFloatToFloat(buf.getShort());
         return new Vector3f(x, y, z);
     }
 
