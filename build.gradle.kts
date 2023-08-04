@@ -14,5 +14,9 @@ dependencies {
     implementation("org.lwjgl", "lwjgl")
     implementation("org.joml", "joml", "1.10.5")
 
+    implementation("de.javagl:jgltf-model:2.0.3")
+    implementation("de.javagl:jgltf-obj:2.0.3")
+    implementation("de.javagl:jgltf-model-builder:2.0.3")
+
     implementation("com.google.flatbuffers", "flatbuffers-java", "23.3.3")
 }

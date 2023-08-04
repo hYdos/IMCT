@@ -1,10 +1,25 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model;
 
+import de.javagl.jgltf.impl.v2.GlTF;
+import de.javagl.jgltf.model.creation.GltfModelBuilder;
+import de.javagl.jgltf.model.creation.MaterialBuilder;
+import de.javagl.jgltf.model.creation.MeshPrimitiveBuilder;
+import de.javagl.jgltf.model.impl.*;
+import de.javagl.jgltf.model.io.GltfWriter;
+import de.javagl.jgltf.model.io.v2.GltfAssetV2;
+import de.javagl.jgltf.model.io.v2.GltfAssetsV2;
+import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
+import de.javagl.jgltf.model.v2.MaterialModelV2;
+import de.javagl.jgltf.obj.model.ObjGltfModelCreator;
 import gg.generations.imct.intermediate.Model;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -151,7 +166,43 @@ public class SVModel implements Model {
 
     @Override
     public void writeModel(Path path) {
-        throw new RuntimeException("Unimplemented");
+        try {
+            // Create a material, and assign it to the mesh primitive
+            MaterialBuilder materialBuilder = MaterialBuilder.create();
+            materialBuilder.setBaseColorFactor(1.0f, 0.9f, 0.9f, 1.0f);
+            materialBuilder.setDoubleSided(true);
+            MaterialModelV2 materialModel = materialBuilder.build();
+
+            DefaultSceneModel sceneModel = new DefaultSceneModel();
+
+            for (Mesh mesh : meshes) {
+                DefaultMeshModel meshModel = new DefaultMeshModel();
+
+                var meshPrimitiveModel = mesh.create().build();
+
+                meshPrimitiveModel.setMaterialModel(materialModel);
+                meshModel.addMeshPrimitiveModel(meshPrimitiveModel);
+
+                // Create a node with the mesh
+                DefaultNodeModel nodeModel = new DefaultNodeModel();
+
+                nodeModel.addMeshModel(meshModel);
+                sceneModel.addNode(nodeModel);
+            }
+
+            // Pass the scene to the model builder. It will take care
+            // of the other model elements that are contained in the scene.
+            // (I.e. the mesh primitive and its accessors, and the material
+            // and its textures)
+            GltfModelBuilder gltfModelBuilder = GltfModelBuilder.create();
+            gltfModelBuilder.addSceneModel(sceneModel);
+            DefaultGltfModel gltfModel = gltfModelBuilder.build();
+
+            GltfModelWriterV2 gltfWriter = new GltfModelWriterV2();
+            gltfWriter.writeBinary(gltfModel, Files.newOutputStream(path));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create %s".formatted(path), e);
+        }
     }
 
     private record Mesh(
@@ -162,6 +213,23 @@ public class SVModel implements Model {
             List<Vector3f> biNormals,
             List<Vector2f> uvs
     ) {
+        public MeshPrimitiveBuilder create() {
+            var meshPrimitiveBuilder =
+                    MeshPrimitiveBuilder.create();
+            meshPrimitiveBuilder.setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray()));
+            meshPrimitiveBuilder.addPositions3D(vec3fListToBuffer(positions));
+            meshPrimitiveBuilder.setTriangles();
+            return meshPrimitiveBuilder;
+        }
+    }
+
+    private static FloatBuffer vec3fListToBuffer(List<Vector3f> list) {
+        var buffer = FloatBuffer.wrap(new float[list.size() * 3]);
+        for (Vector3f element : list) {
+            buffer.put(element.x).put(element.y).put(element.z);
+        }
+
+        return buffer;
     }
 
     private record Attribute(
