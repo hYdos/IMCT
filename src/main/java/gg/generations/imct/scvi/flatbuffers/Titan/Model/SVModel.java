@@ -130,7 +130,7 @@ public class SVModel implements Model {
                         case TEXCOORD -> {
                             if (Objects.requireNonNull(attribute.size) == AttributeSize.RG_32_FLOAT) {
                                 var x = vertexBuffer.getFloat();
-                                var y = vertexBuffer.getFloat();
+                                var y = 1.0f - vertexBuffer.getFloat();
                                 uvs.add(new Vector2f(x, y));
                             } else {
                                 throw new RuntimeException("Unexpected uv format: " + attribute.type);
