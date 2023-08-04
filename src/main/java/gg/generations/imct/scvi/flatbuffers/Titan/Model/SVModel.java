@@ -1,16 +1,12 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model;
 
-import de.javagl.jgltf.impl.v2.GlTF;
 import de.javagl.jgltf.model.creation.GltfModelBuilder;
 import de.javagl.jgltf.model.creation.MaterialBuilder;
 import de.javagl.jgltf.model.creation.MeshPrimitiveBuilder;
-import de.javagl.jgltf.model.impl.*;
-import de.javagl.jgltf.model.io.GltfWriter;
-import de.javagl.jgltf.model.io.v2.GltfAssetV2;
-import de.javagl.jgltf.model.io.v2.GltfAssetsV2;
+import de.javagl.jgltf.model.impl.DefaultMeshModel;
+import de.javagl.jgltf.model.impl.DefaultNodeModel;
+import de.javagl.jgltf.model.impl.DefaultSceneModel;
 import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
-import de.javagl.jgltf.model.v2.MaterialModelV2;
-import de.javagl.jgltf.obj.model.ObjGltfModelCreator;
 import gg.generations.imct.intermediate.Model;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
@@ -77,16 +73,16 @@ public class SVModel implements Model {
             var uvs = new ArrayList<Vector2f>();
 
             var realIdxBuffer = idxBuffer.bufferAsByteBuffer();
-            for (int j = 0; j < idxBuffer.bufferLength() / idxLayout.size; j++) {
+            for (var j = 0; j < idxBuffer.bufferLength() / idxLayout.size; j++) {
                 switch (idxLayout) {
                     case UINT16 -> indices.add(realIdxBuffer.getShort() & 0xFFFF);
                     default -> throw new RuntimeException("no");
                 }
             }
 
-            var vertexCount = info.attributes(0).size(0).size();
+            var vertexCount = data.vertexBuffer(0).bufferLength() / info.attributes(0).size(0).size();
 
-            for (int j = 0; j < vertexCount; j++) {
+            for (var j = 0; j < vertexCount; j++) {
                 for (var attribute : attributes) {
                     switch (attribute.type) {
                         case POSITION -> {
@@ -128,7 +124,10 @@ public class SVModel implements Model {
 
                         case BLEND_INDICES -> {
                             if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNSIGNED) {
-                                readW16X16Y16Z16Float(vertexBuffer);
+                                var w = vertexBuffer.get();
+                                var x = vertexBuffer.get();
+                                var y = vertexBuffer.get();
+                                var z = vertexBuffer.get();
                                 // TODO: add these
                             } else {
                                 throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
@@ -152,7 +151,12 @@ public class SVModel implements Model {
                 }
             }
 
-            meshes.add(new Mesh(indices, positions, normals, tangents, binormals, uvs));
+            // Sub meshes
+            for (int j = 0; j < info.materialsLength(); j++) {
+                var subMesh = info.materials(j);
+                var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
+                meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), subIdxBuffer, positions, normals, tangents, binormals, uvs));
+            }
         }
     }
 
@@ -167,25 +171,23 @@ public class SVModel implements Model {
     @Override
     public void writeModel(Path path) {
         try {
-            // Create a material, and assign it to the mesh primitive
-            MaterialBuilder materialBuilder = MaterialBuilder.create();
-            materialBuilder.setBaseColorFactor(1.0f, 0.9f, 0.9f, 1.0f);
-            materialBuilder.setDoubleSided(true);
-            MaterialModelV2 materialModel = materialBuilder.build();
+            var sceneModel = new DefaultSceneModel();
+            var materialModel = MaterialBuilder.create()
+                    .setBaseColorFactor(1.0f, 0.9f, 0.9f, 1.0f)
+                    .setDoubleSided(true)
+                    .build();
 
-            DefaultSceneModel sceneModel = new DefaultSceneModel();
 
-            for (Mesh mesh : meshes) {
-                DefaultMeshModel meshModel = new DefaultMeshModel();
-
+            for (var mesh : meshes) {
+                var meshModel = new DefaultMeshModel();
                 var meshPrimitiveModel = mesh.create().build();
 
                 meshPrimitiveModel.setMaterialModel(materialModel);
                 meshModel.addMeshPrimitiveModel(meshPrimitiveModel);
 
                 // Create a node with the mesh
-                DefaultNodeModel nodeModel = new DefaultNodeModel();
-
+                var nodeModel = new DefaultNodeModel();
+                nodeModel.setName(mesh.name());
                 nodeModel.addMeshModel(meshModel);
                 sceneModel.addNode(nodeModel);
             }
@@ -194,11 +196,11 @@ public class SVModel implements Model {
             // of the other model elements that are contained in the scene.
             // (I.e. the mesh primitive and its accessors, and the material
             // and its textures)
-            GltfModelBuilder gltfModelBuilder = GltfModelBuilder.create();
+            var gltfModelBuilder = GltfModelBuilder.create();
             gltfModelBuilder.addSceneModel(sceneModel);
-            DefaultGltfModel gltfModel = gltfModelBuilder.build();
+            var gltfModel = gltfModelBuilder.build();
 
-            GltfModelWriterV2 gltfWriter = new GltfModelWriterV2();
+            var gltfWriter = new GltfModelWriterV2();
             gltfWriter.writeBinary(gltfModel, Files.newOutputStream(path));
         } catch (IOException e) {
             throw new RuntimeException("Failed to create %s".formatted(path), e);
@@ -206,6 +208,7 @@ public class SVModel implements Model {
     }
 
     private record Mesh(
+            String name,
             List<Integer> indices,
             List<Vector3f> positions,
             List<Vector3f> normals,
@@ -214,20 +217,20 @@ public class SVModel implements Model {
             List<Vector2f> uvs
     ) {
         public MeshPrimitiveBuilder create() {
-            var meshPrimitiveBuilder =
-                    MeshPrimitiveBuilder.create();
-            meshPrimitiveBuilder.setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray()));
-            meshPrimitiveBuilder.addPositions3D(vec3fListToBuffer(positions));
-            meshPrimitiveBuilder.setTriangles();
-            return meshPrimitiveBuilder;
+            return MeshPrimitiveBuilder.create()
+                    .setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
+                    .addPositions3D(vec3fListToBuffer(positions))
+                    .setTriangles();
         }
     }
 
     private static FloatBuffer vec3fListToBuffer(List<Vector3f> list) {
         var buffer = FloatBuffer.wrap(new float[list.size() * 3]);
-        for (Vector3f element : list) {
-            buffer.put(element.x).put(element.y).put(element.z);
-        }
+        for (var element : list)
+            buffer
+                    .put(element.x)
+                    .put(element.y)
+                    .put(element.z);
 
         return buffer;
     }
@@ -250,7 +253,7 @@ public class SVModel implements Model {
         BLEND_WEIGHTS;
 
         public static AttributeType get(long id) {
-            for (int i = 0; i < values().length; i++) if (i == id) return values()[i];
+            for (var i = 0; i < values().length; i++) if (i == id) return values()[i];
             throw new RuntimeException("Unknown Attribute Type " + id);
         }
     }
