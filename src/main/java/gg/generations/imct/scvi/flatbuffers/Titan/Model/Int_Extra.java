@@ -3,16 +3,25 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model;
 
 import com.google.flatbuffers.BaseVector;
+import com.google.flatbuffers.BooleanVector;
+import com.google.flatbuffers.ByteVector;
 import com.google.flatbuffers.Constants;
+import com.google.flatbuffers.DoubleVector;
 import com.google.flatbuffers.FlatBufferBuilder;
+import com.google.flatbuffers.FloatVector;
+import com.google.flatbuffers.IntVector;
+import com.google.flatbuffers.LongVector;
+import com.google.flatbuffers.ShortVector;
+import com.google.flatbuffers.StringVector;
+import com.google.flatbuffers.Struct;
 import com.google.flatbuffers.Table;
-
+import com.google.flatbuffers.UnionVector;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 @SuppressWarnings("unused")
 public final class Int_Extra extends Table {
-  public static void ValidateVersion() { Constants.FLATBUFFERS_23_5_26(); }
+  public static void ValidateVersion() { Constants.FLATBUFFERS_23_3_3(); }
   public static Int_Extra getRootAsInt_Extra(ByteBuffer _bb) { return getRootAsInt_Extra(_bb, new Int_Extra()); }
   public static Int_Extra getRootAsInt_Extra(ByteBuffer _bb, Int_Extra obj) { _bb.order(ByteOrder.LITTLE_ENDIAN); return (obj.__assign(_bb.getInt(_bb.position()) + _bb.position(), _bb)); }
   public void __init(int _i, ByteBuffer _bb) { __reset(_i, _bb); }
