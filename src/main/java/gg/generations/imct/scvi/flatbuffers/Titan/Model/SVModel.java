@@ -219,12 +219,12 @@ public class SVModel implements Model {
         public MeshPrimitiveBuilder create() {
             return MeshPrimitiveBuilder.create()
                     .setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
-                    .addPositions3D(vec3fListToBuffer(positions))
+                    .addPositions3D(toBuffer3(positions))
                     .setTriangles();
         }
     }
 
-    private static FloatBuffer vec3fListToBuffer(List<Vector3f> list) {
+    private static FloatBuffer toBuffer3(List<Vector3f> list) {
         var buffer = FloatBuffer.wrap(new float[list.size() * 3]);
         for (var element : list)
             buffer
@@ -232,7 +232,17 @@ public class SVModel implements Model {
                     .put(element.y)
                     .put(element.z);
 
-        return buffer;
+        return buffer.rewind();
+    }
+
+    private static FloatBuffer toBuffer2(List<Vector2f> list) {
+        var buffer = FloatBuffer.wrap(new float[list.size() * 2]);
+        for (var element : list)
+            buffer
+                    .put(element.x)
+                    .put(element.y);
+
+        return buffer.rewind();
     }
 
     private record Attribute(
