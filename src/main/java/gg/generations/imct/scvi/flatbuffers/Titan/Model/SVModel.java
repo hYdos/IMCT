@@ -61,12 +61,12 @@ public class SVModel implements Model {
 
             for (int j = 0; j < rawMaterial.float4ParameterLength(); j++) {
                 var colorParam = rawMaterial.float4Parameter(j);
-
                 colorProperties.put(colorParam.colorName(), new Vector4i(
                         linearToNonLinearColor(colorParam.colorValue().r()),
                         linearToNonLinearColor(colorParam.colorValue().g()),
                         linearToNonLinearColor(colorParam.colorValue().b()),
                         linearToNonLinearColor(colorParam.colorValue().a())));
+
             }
 
             for (int j = 0; j < rawMaterial.floatParameterLength(); j++) {

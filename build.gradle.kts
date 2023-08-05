@@ -18,5 +18,7 @@ dependencies {
     implementation("de.javagl:jgltf-obj:2.0.3")
     implementation("de.javagl:jgltf-model-builder:2.0.3")
 
+    implementation("net.imagej:ij:1.54f")
+
     implementation("com.google.flatbuffers", "flatbuffers-java", "23.3.3")
 }
