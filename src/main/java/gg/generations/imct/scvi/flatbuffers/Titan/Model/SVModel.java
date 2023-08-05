@@ -1,27 +1,33 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model;
 
+import de.javagl.jgltf.model.GltfConstants;
+import de.javagl.jgltf.model.creation.AccessorModels;
 import de.javagl.jgltf.model.creation.GltfModelBuilder;
 import de.javagl.jgltf.model.creation.MaterialBuilder;
 import de.javagl.jgltf.model.creation.MeshPrimitiveBuilder;
 import de.javagl.jgltf.model.impl.DefaultMeshModel;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import de.javagl.jgltf.model.impl.DefaultSceneModel;
+import de.javagl.jgltf.model.impl.DefaultSkinModel;
+import de.javagl.jgltf.model.io.Buffers;
 import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
 import de.javagl.jgltf.model.v2.MaterialModelV2;
 import gg.generations.imct.intermediate.Model;
-import org.joml.Vector2f;
-import org.joml.Vector3f;
+import org.joml.*;
 
 import java.io.IOException;
+import java.lang.Math;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.nio.ShortBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
 public class SVModel implements Model {
 
+    private final List<DefaultNodeModel> skeleton;
     private final List<Mesh> meshes = new ArrayList<>();
     private final Map<String, Material> materials = new HashMap<>();
 
@@ -40,6 +46,67 @@ public class SVModel implements Model {
             meshData.add(meshD);
         }
 
+        record Bone(
+                String name,
+                Matrix4f matrix,
+                int parent,
+                int rigIdx,
+                long type,
+                List<Bone> children
+        ) {
+        }
+
+        List<Bone> bones = new ArrayList<>();
+
+        // First bone pass. Get all raw info into a normal format
+        for (int i = 0; i < trskl.transformNodesLength(); i++) {
+            var bone = trskl.transformNodes(i);
+
+            var rawRotation = toVec3(bone.transform().vecRot()).rotateX((float) Math.toRadians(90));
+
+            bones.add(new Bone(
+                    bone.name(),
+                    new Matrix4f().translationRotateScale(
+                            toVec3(bone.transform().vecTranslate()),
+                            new Quaternionf().rotateXYZ(rawRotation.x, rawRotation.y, rawRotation.z),
+                            toVec3(bone.transform().vecScale())
+                    ),
+                    bone.parentIdx(),
+                    bone.rigIdx(),
+                    bone.type(),
+                    new ArrayList<>()
+            ));
+        }
+
+        // Second bone pass. Add children
+        for (var value : bones) {
+            if (value.parent() != -1) {
+                var parent = bones.get(value.parent());
+                if (parent != null) parent.children.add(value);
+            }
+        }
+
+        // Second bone pass. Convert into skeleton
+        this.skeleton = bones.stream().map(bone -> {
+            var node = new DefaultNodeModel();
+            node.setName(bone.name);
+            node.setMatrix(new float[]{
+                    bone.matrix().m00(), bone.matrix().m01(), bone.matrix().m02(), bone.matrix().m03(),
+                    bone.matrix().m10(), bone.matrix().m11(), bone.matrix().m12(), bone.matrix().m13(),
+                    bone.matrix().m20(), bone.matrix().m21(), bone.matrix().m22(), bone.matrix().m23(),
+                    bone.matrix().m30(), bone.matrix().m31(), bone.matrix().m32(), bone.matrix().m33()
+            });
+
+            return node;
+        }).toList();
+
+        for (int i = 0; i < skeleton.size(); i++) {
+            var node = skeleton.get(i);
+            var bone = bones.get(i);
+            if(bone.parent == -1) continue;
+            node.setParent(skeleton.get(bone.parent));
+        }
+
         // Process extra material variants (shiny)
         //var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
 
@@ -49,9 +116,9 @@ public class SVModel implements Model {
             var rawMaterial = material.materials(i);
             var textures = new ArrayList<Texture>();
             var materialName = rawMaterial.name();
-            var shader = rawMaterial.shaders(0).shaderName();
+            var shader = Objects.requireNonNull(rawMaterial.shaders(0).shaderName(), "Null shader name");
 
-            if(!shader.equals("SSS")) {
+            if (!shader.equals("SSS")) {
                 if (shader.equals("EyeClearCoat")) {
                     System.out.println("Material Properties");
                     for (int j = 0; j < rawMaterial.float4ParameterLength(); j++) {
@@ -105,7 +172,9 @@ public class SVModel implements Model {
                 var indices = new ArrayList<Integer>();
                 var positions = new ArrayList<Vector3f>();
                 var normals = new ArrayList<Vector3f>();
-                var tangents = new ArrayList<Vector3f>();
+                var tangents = new ArrayList<Vector4f>();
+                var weights = new ArrayList<Vector4f>();
+                var boneIds = new ArrayList<Vector4i>();
                 var binormals = new ArrayList<Vector3f>();
                 var uvs = new ArrayList<Vector2f>();
 
@@ -147,7 +216,7 @@ public class SVModel implements Model {
 
                             case NORMAL -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
-                                    normals.add(readRGBA16Float(vertexBuffer));
+                                    normals.add(readRGBA16Float3(vertexBuffer));
                                 } else {
                                     throw new RuntimeException("Unexpected normal format: " + attribute.type);
                                 }
@@ -155,7 +224,7 @@ public class SVModel implements Model {
 
                             case TANGENT -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
-                                    tangents.add(readRGBA16Float(vertexBuffer));
+                                    tangents.add(readRGBA16Float4(vertexBuffer));
                                 } else {
                                     throw new RuntimeException("Unexpected tangent format: " + attribute.type);
                                 }
@@ -173,11 +242,11 @@ public class SVModel implements Model {
 
                             case BLEND_INDICES -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNSIGNED) {
-                                    var w = vertexBuffer.get();
-                                    var x = vertexBuffer.get();
-                                    var y = vertexBuffer.get();
-                                    var z = vertexBuffer.get();
-                                    // TODO: add these
+                                    var w = vertexBuffer.get() & 0xFF;
+                                    var x = vertexBuffer.get() & 0xFF;
+                                    var y = vertexBuffer.get() & 0xFF;
+                                    var z = vertexBuffer.get() & 0xFF;
+                                    boneIds.add(new Vector4i(x, y, z, w));
                                 } else {
                                     throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
                                 }
@@ -185,11 +254,11 @@ public class SVModel implements Model {
 
                             case BLEND_WEIGHTS -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_UNORM) {
-                                    var w = vertexBuffer.getShort();
-                                    var x = vertexBuffer.getShort();
-                                    var y = vertexBuffer.getShort();
-                                    var z = vertexBuffer.getShort();
-                                    // TODO: add these
+                                    var w = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+                                    var x = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+                                    var y = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+                                    var z = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+                                    weights.add(new Vector4f(x, y, z, w));
                                 } else {
                                     throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
                                 }
@@ -205,18 +274,26 @@ public class SVModel implements Model {
                     var subMesh = info.materials(j);
                     var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
                     if (!Objects.requireNonNull(info.meshName()).contains("lod"))
-                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, binormals, uvs));
+                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, weights, boneIds, binormals, uvs));
                 }
             }
         }
     }
 
-    private static Vector3f readRGBA16Float(ByteBuffer buf) {
+    private static Vector3f readRGBA16Float3(ByteBuffer buf) {
         var x = Model.halfFloatToFloat(buf.getShort()); // Ignored. Maybe padding?
         var y = Model.halfFloatToFloat(buf.getShort());
         var z = Model.halfFloatToFloat(buf.getShort());
         var w = Model.halfFloatToFloat(buf.getShort());
         return new Vector3f(x, y, z);
+    }
+
+    private static Vector4f readRGBA16Float4(ByteBuffer buf) {
+        var x = Model.halfFloatToFloat(buf.getShort()); // Ignored. Maybe padding?
+        var y = Model.halfFloatToFloat(buf.getShort());
+        var z = Model.halfFloatToFloat(buf.getShort());
+        var w = Model.halfFloatToFloat(buf.getShort());
+        return new Vector4f(x, y, z, w);
     }
 
     @Override
@@ -232,6 +309,21 @@ public class SVModel implements Model {
                         .build());
             }
 
+            var skin = new DefaultSkinModel();
+            skin.setSkeleton(skeleton.get(0));
+            for (var jointNode : skeleton.subList(1, skeleton.size() - 1)) skin.addJoint(jointNode);
+
+            var inverseBindMatrices = FloatBuffer.allocate(16 * skeleton.size());
+            for (int i = 0; i < skeleton.size(); i++) {
+                inverseBindMatrices
+                        .put(1.0f).put(0.0f).put(0.0f).put(0.0f)
+                        .put(0.0f).put(1.0f).put(0.0f).put(0.0f)
+                        .put(0.0f).put(0.0f).put(1.0f).put(0.0f)
+                        .put(0.0f).put(0.0f).put(0.0f).put(1.0f);
+            }
+            skin.setInverseBindMatrices(AccessorModels.create(GltfConstants.GL_FLOAT, "MAT4", false, Buffers.createByteBufferFrom(inverseBindMatrices)));
+
+
             for (var mesh : meshes) {
                 var meshModel = new DefaultMeshModel();
                 var meshPrimitiveModel = mesh.create().build();
@@ -243,6 +335,7 @@ public class SVModel implements Model {
                 var nodeModel = new DefaultNodeModel();
                 nodeModel.setName(mesh.name());
                 nodeModel.addMeshModel(meshModel);
+                nodeModel.setSkinModel(skin);
                 sceneModel.addNode(nodeModel);
             }
 
@@ -251,6 +344,7 @@ public class SVModel implements Model {
             // (I.e. the mesh primitive and its accessors, and the material
             // and its textures)
             var gltfModelBuilder = GltfModelBuilder.create();
+            gltfModelBuilder.addSkinModel(skin);
             gltfModelBuilder.addSceneModel(sceneModel);
             var gltfModel = gltfModelBuilder.build();
 
@@ -284,7 +378,9 @@ public class SVModel implements Model {
             List<Integer> indices,
             List<Vector3f> positions,
             List<Vector3f> normals,
-            List<Vector3f> tangents,
+            List<Vector4f> tangents,
+            List<Vector4f> weights,
+            List<Vector4i> boneIds,
             List<Vector3f> biNormals,
             List<Vector2f> uvs
     ) {
@@ -292,10 +388,42 @@ public class SVModel implements Model {
             return MeshPrimitiveBuilder.create()
                     .setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
                     .addNormals3D(toBuffer3(normals))
+                    .addTangents4D(toBuffer4(tangents))
+                    .addAttribute("JOINTS_0", AccessorModels.create(GltfConstants.GL_UNSIGNED_SHORT, "VEC4", false, Buffers.createByteBufferFrom(toUShort4(boneIds))))
+                    .addAttribute("WEIGHTS_0", AccessorModels.create(GltfConstants.GL_FLOAT, "VEC4", false, Buffers.createByteBufferFrom(toBuffer4(weights))))
                     .addTexCoords02D(toBuffer2(uvs))
                     .addPositions3D(toBuffer3(positions))
                     .setTriangles();
         }
+    }
+
+    private static Vector3f toVec3(Vec3 vec) {
+        return new Vector3f(vec.x(), vec.y(), vec.z());
+    }
+
+    private static ShortBuffer toUShort4(List<Vector4i> list) {
+        var buffer = ShortBuffer.wrap(new short[list.size() * 4]);
+        for (var element : list)
+            buffer
+                    .put((short) (element.x & 65535))
+                    .put((short) (element.y & 65535))
+                    .put((short) (element.z & 65535))
+                    .put((short) (element.w & 65535));
+
+        return buffer.rewind();
+    }
+
+
+    private static FloatBuffer toBuffer4(List<Vector4f> list) {
+        var buffer = FloatBuffer.wrap(new float[list.size() * 4]);
+        for (var element : list)
+            buffer
+                    .put(element.x)
+                    .put(element.y)
+                    .put(element.z)
+                    .put(element.w);
+
+        return buffer.rewind();
     }
 
     private static FloatBuffer toBuffer3(List<Vector3f> list) {
