@@ -26,7 +26,7 @@ public class IMCT {
 //            }
 //        });
 
-        var folder = Files.exists(Paths.get("C:\\users\\hydos")) ? Paths.get("F:/PokemonModels/SV/pokemon/data/pm0053/pm0053_00_00") : Paths.get("pm0053_00_00");
+        var folder = Paths.get("C:\\Users\\water\\Downloads\\pm0006_00_00");
         var model = new SVModel(folder);
         var outModel = Paths.get("out.glb");
         model.writeModel(outModel);

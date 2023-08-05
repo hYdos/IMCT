@@ -11,7 +11,12 @@ import de.javagl.jgltf.model.v2.MaterialModelV2;
 import gg.generations.imct.intermediate.Model;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
+import org.joml.Vector4f;
+import org.joml.Vector4i;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
@@ -49,24 +54,17 @@ public class SVModel implements Model {
             var rawMaterial = material.materials(i);
             var textures = new ArrayList<Texture>();
             var materialName = rawMaterial.name();
+            var colors = new HashMap<String, Vector4i>();
             var shader = rawMaterial.shaders(0).shaderName();
 
-            if(!shader.equals("SSS")) {
-                if (shader.equals("EyeClearCoat")) {
-                    System.out.println("Material Properties");
-                    for (int j = 0; j < rawMaterial.float4ParameterLength(); j++) {
-                        var colorParam = rawMaterial.float4Parameter(j);
-                        System.out.println("Name: " + colorParam.colorName());
-                        System.out.println("R: " + colorParam.colorValue().r() * 255);
-                        System.out.println("G: " + colorParam.colorValue().g() * 255);
-                        System.out.println("B: " + colorParam.colorValue().b() * 255);
-                        System.out.println("A: " + colorParam.colorValue().a() * 255);
-                    }
+            for (int j = 0; j < rawMaterial.float4ParameterLength(); j++) {
+                var colorParam = rawMaterial.float4Parameter(j);
 
-                    System.out.println();
-                } else {
-                    throw new RuntimeException("Unknown shader " + shader);
-                }
+                colors.put(colorParam.colorName(), new Vector4i(
+                        linearToNonLinearColor(colorParam.colorValue().r()),
+                        linearToNonLinearColor(colorParam.colorValue().g()),
+                        linearToNonLinearColor(colorParam.colorValue().b()),
+                        linearToNonLinearColor(colorParam.colorValue().a())));
             }
 
             for (int j = 0; j < rawMaterial.texturesLength(); j++) {
@@ -76,9 +74,16 @@ public class SVModel implements Model {
 
             materials.put(materialName, new Material(
                     materialName,
-                    textures
+                    textures,
+                    colors
             ));
         }
+
+        var display = new Vector4iDisplay(materials.get("l_eye").colors);
+        display.setVisible(true);
+        display.saveDisplayAsImage("display.png");
+
+        EyeTextureGenerator.generate(materials.get("l_eye"));
 
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
@@ -222,7 +227,7 @@ public class SVModel implements Model {
 
             for (var value : materials.values()) {
                 sceneMaterials.put(value, MaterialBuilder.create()
-                        .setBaseColorTexture("file:///" + value.getTexture("BaseColorMap").filePath().replace("\\", "/"), "image/png", 0)
+                        .setBaseColorTexture("file:///" + value.getTexture("BaseColorMap").filePath().replace("\\", "/").replace(" ", "%20"), "image/png", 0)
                         .setDoubleSided(true)
                         .build());
             }
@@ -256,21 +261,28 @@ public class SVModel implements Model {
         }
     }
 
-    private record Material(
+    public record Material(
             String name,
-            List<Texture> textures
+            List<Texture> textures,
+            Map<String, Vector4i> colors
     ) {
-
         public Texture getTexture(String type) {
             for (var texture : textures) if (texture.type.equals(type)) return texture;
             throw new RuntimeException("Texture of type " + type + " doesn't exist");
         }
     }
 
-    private record Texture(
+    public record Texture(
             String type,
             String filePath
     ) {
+        public BufferedImage getBufferedImage() {
+            try {
+                return ImageIO.read(new File(filePath));
+            } catch (IOException e) {
+                return null;
+            }
+        }
     }
 
     private record Mesh(
@@ -378,5 +390,9 @@ public class SVModel implements Model {
         public static IndexLayout get(int i) {
             return values()[i];
         }
+    }
+
+    private int linearToNonLinearColor(float color) {
+        return (int) (Math.ceil(Math.pow(color, 1/2.25530545664) * 255));
     }
 }
