@@ -54,17 +54,31 @@ public class SVModel implements Model {
             var rawMaterial = material.materials(i);
             var textures = new ArrayList<Texture>();
             var materialName = rawMaterial.name();
-            var colors = new HashMap<String, Vector4i>();
+            var colorProperties = new HashMap<String, Vector4i>();
+            var floatProperties = new HashMap<String, Float>();
+            var intProperties = new HashMap<String, Integer>();
             var shader = rawMaterial.shaders(0).shaderName();
 
             for (int j = 0; j < rawMaterial.float4ParameterLength(); j++) {
                 var colorParam = rawMaterial.float4Parameter(j);
 
-                colors.put(colorParam.colorName(), new Vector4i(
+                colorProperties.put(colorParam.colorName(), new Vector4i(
                         linearToNonLinearColor(colorParam.colorValue().r()),
                         linearToNonLinearColor(colorParam.colorValue().g()),
                         linearToNonLinearColor(colorParam.colorValue().b()),
                         linearToNonLinearColor(colorParam.colorValue().a())));
+            }
+
+            for (int j = 0; j < rawMaterial.floatParameterLength(); j++) {
+                var floatParam = rawMaterial.floatParameter(j);
+
+                floatProperties.put(floatParam.floatName(), floatParam.floatValue());
+            }
+
+            for (int j = 0; j < rawMaterial.intParameterLength(); j++) {
+                var intParam = rawMaterial.intParameter(j);
+
+                intProperties.put(intParam.intName(), intParam.intValue());
             }
 
             for (int j = 0; j < rawMaterial.texturesLength(); j++) {
@@ -75,7 +89,7 @@ public class SVModel implements Model {
             materials.put(materialName, new Material(
                     materialName,
                     textures,
-                    colors
+                    colorProperties
             ));
         }
 
