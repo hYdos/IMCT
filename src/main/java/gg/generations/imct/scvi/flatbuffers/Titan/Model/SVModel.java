@@ -62,7 +62,7 @@ public class SVModel implements Model {
         for (int i = 0; i < trskl.transformNodesLength(); i++) {
             var bone = trskl.transformNodes(i);
 
-            var rawRotation = toVec3(bone.transform().vecRot()).rotateX((float) Math.toRadians(90));
+            var rawRotation = toVec3(bone.transform().vecRot());
 
             bones.add(new Bone(
                     bone.name(),
@@ -90,11 +90,13 @@ public class SVModel implements Model {
         this.skeleton = bones.stream().map(bone -> {
             var node = new DefaultNodeModel();
             node.setName(bone.name);
+
+            var transform = bone.matrix();
             node.setMatrix(new float[]{
-                    bone.matrix().m00(), bone.matrix().m01(), bone.matrix().m02(), bone.matrix().m03(),
-                    bone.matrix().m10(), bone.matrix().m11(), bone.matrix().m12(), bone.matrix().m13(),
-                    bone.matrix().m20(), bone.matrix().m21(), bone.matrix().m22(), bone.matrix().m23(),
-                    bone.matrix().m30(), bone.matrix().m31(), bone.matrix().m32(), bone.matrix().m33()
+                    transform.m00(), transform.m01(), transform.m02(), transform.m03(),
+                    transform.m10(), transform.m11(), transform.m12(), transform.m13(),
+                    transform.m20(), transform.m21(), transform.m22(), transform.m23(),
+                    transform.m30(), transform.m31(), transform.m32(), transform.m33()
             });
 
             return node;
@@ -103,8 +105,9 @@ public class SVModel implements Model {
         for (int i = 0; i < skeleton.size(); i++) {
             var node = skeleton.get(i);
             var bone = bones.get(i);
-            if(bone.parent == -1) continue;
-            node.setParent(skeleton.get(bone.parent));
+            if (bone.parent == -1) continue;
+            var parent = skeleton.get(bone.parent);
+            parent.addChild(node);
         }
 
         // Process extra material variants (shiny)
@@ -132,7 +135,7 @@ public class SVModel implements Model {
 
                     System.out.println();
                 } else {
-                    throw new RuntimeException("Unknown shader " + shader);
+                    System.err.println("Unknown shader " + shader);
                 }
             }
 
@@ -322,7 +325,6 @@ public class SVModel implements Model {
                         .put(0.0f).put(0.0f).put(0.0f).put(1.0f);
             }
             skin.setInverseBindMatrices(AccessorModels.create(GltfConstants.GL_FLOAT, "MAT4", false, Buffers.createByteBufferFrom(inverseBindMatrices)));
-
 
             for (var mesh : meshes) {
                 var meshModel = new DefaultMeshModel();
