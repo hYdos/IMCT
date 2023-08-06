@@ -24,6 +24,8 @@ import java.nio.ShortBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.DoubleStream;
+import java.util.stream.Stream;
 
 public class SVModel implements Model {
 
@@ -92,12 +94,14 @@ public class SVModel implements Model {
             node.setName(bone.name);
 
             var transform = bone.matrix();
-            node.setMatrix(new float[]{
-                    transform.m00(), transform.m01(), transform.m02(), transform.m03(),
-                    transform.m10(), transform.m11(), transform.m12(), transform.m13(),
-                    transform.m20(), transform.m21(), transform.m22(), transform.m23(),
-                    transform.m30(), transform.m31(), transform.m32(), transform.m33()
-            });
+
+            if (!isIdentityMatrix(transform))
+                node.setMatrix(new float[]{
+                        transform.m00(), transform.m01(), transform.m02(), transform.m03(),
+                        transform.m10(), transform.m11(), transform.m12(), transform.m13(),
+                        transform.m20(), transform.m21(), transform.m22(), transform.m23(),
+                        transform.m30(), transform.m31(), transform.m32(), transform.m33()
+                });
 
             return node;
         }).toList();
@@ -306,25 +310,22 @@ public class SVModel implements Model {
             var sceneMaterials = new HashMap<Material, MaterialModelV2>();
 
             for (var value : materials.values()) {
-                sceneMaterials.put(value, MaterialBuilder.create()
+                var material = MaterialBuilder.create()
                         .setBaseColorTexture("file:///" + value.getTexture("BaseColorMap").filePath().replace("\\", "/"), "image/png", 0)
                         .setDoubleSided(true)
-                        .build());
+                        .build();
+                material.setName(value.name);
+
+                sceneMaterials.put(value, material);
             }
 
             var skin = new DefaultSkinModel();
             skin.setSkeleton(skeleton.get(0));
-            for (var jointNode : skeleton.subList(1, skeleton.size() - 1)) skin.addJoint(jointNode);
-
-            var inverseBindMatrices = FloatBuffer.allocate(16 * skeleton.size());
-            for (int i = 0; i < skeleton.size(); i++) {
-                inverseBindMatrices
-                        .put(1.0f).put(0.0f).put(0.0f).put(0.0f)
-                        .put(0.0f).put(1.0f).put(0.0f).put(0.0f)
-                        .put(0.0f).put(0.0f).put(1.0f).put(0.0f)
-                        .put(0.0f).put(0.0f).put(0.0f).put(1.0f);
+            for (var jointNode : skeleton.subList(1, skeleton.size() - 1)) {
+                skin.addJoint(jointNode);
+                sceneModel.addNode(jointNode);
             }
-            skin.setInverseBindMatrices(AccessorModels.create(GltfConstants.GL_FLOAT, "MAT4", false, Buffers.createByteBufferFrom(inverseBindMatrices)));
+
 
             for (var mesh : meshes) {
                 var meshModel = new DefaultMeshModel();
@@ -332,6 +333,7 @@ public class SVModel implements Model {
 
                 meshPrimitiveModel.setMaterialModel(sceneMaterials.get(mesh.material));
                 meshModel.addMeshPrimitiveModel(meshPrimitiveModel);
+                meshModel.setName(mesh.name);
 
                 // Create a node with the mesh
                 var nodeModel = new DefaultNodeModel();
@@ -340,6 +342,8 @@ public class SVModel implements Model {
                 nodeModel.setSkinModel(skin);
                 sceneModel.addNode(nodeModel);
             }
+
+            System.out.println("Nodes without Parents" + sceneModel.getNodeModels().stream().filter(a -> a.getParent() == null).count());
 
             // Pass the scene to the model builder. It will take care
             // of the other model elements that are contained in the scene.
@@ -388,6 +392,8 @@ public class SVModel implements Model {
     ) {
         public MeshPrimitiveBuilder create() {
             var weights1 = weights.stream().map(vector4f -> vector4f.div(vector4f.x + vector4f.y + vector4f.z + vector4f.w)).toList();
+            System.out.println("Weights: " + Arrays.toString(weights1.stream().flatMapToDouble(a -> DoubleStream.of(a.x + a.y + a.z + a.w)).toArray()));
+
             return MeshPrimitiveBuilder.create()
                     .setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
                     .addNormals3D(toBuffer3(normals))
@@ -514,5 +520,13 @@ public class SVModel implements Model {
         public static IndexLayout get(int i) {
             return values()[i];
         }
+    }
+
+    public static boolean isIdentityMatrix(Matrix4f matrix) {
+        return matrix.isAffine() && matrix.m00() == 1.0f && matrix.m11() == 1.0f && matrix.m22() == 1.0f
+                && matrix.m33() == 1.0f && matrix.m01() == 0.0f && matrix.m02() == 0.0f && matrix.m03() == 0.0f
+                && matrix.m10() == 0.0f && matrix.m12() == 0.0f && matrix.m13() == 0.0f && matrix.m20() == 0.0f
+                && matrix.m21() == 0.0f && matrix.m23() == 0.0f && matrix.m30() == 0.0f && matrix.m31() == 0.0f
+                && matrix.m32() == 0.0f;
     }
 }
