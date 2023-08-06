@@ -387,12 +387,13 @@ public class SVModel implements Model {
             List<Vector2f> uvs
     ) {
         public MeshPrimitiveBuilder create() {
+            var weights1 = weights.stream().map(vector4f -> vector4f.div(vector4f.x + vector4f.y + vector4f.z + vector4f.w)).toList();
             return MeshPrimitiveBuilder.create()
                     .setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
                     .addNormals3D(toBuffer3(normals))
-                    .addTangents4D(toBuffer4(tangents))
+//                    .addTangents4D(toBuffer4(tangents))
                     .addAttribute("JOINTS_0", AccessorModels.create(GltfConstants.GL_UNSIGNED_SHORT, "VEC4", false, Buffers.createByteBufferFrom(toUShort4(boneIds))))
-                    .addAttribute("WEIGHTS_0", AccessorModels.create(GltfConstants.GL_FLOAT, "VEC4", false, Buffers.createByteBufferFrom(toBuffer4(weights))))
+                    .addAttribute("WEIGHTS_0", AccessorModels.create(GltfConstants.GL_FLOAT, "VEC4", false, Buffers.createByteBufferFrom(toBuffer4(weights1))))
                     .addTexCoords02D(toBuffer2(uvs))
                     .addPositions3D(toBuffer3(positions))
                     .setTriangles();
