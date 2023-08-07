@@ -70,7 +70,7 @@ public class SVModel implements Model {
                     bone.name(),
                     new Matrix4f().translationRotateScale(
                             toVec3(bone.transform().vecTranslate()),
-                            new Quaternionf().rotateXYZ(rawRotation.x, rawRotation.y, rawRotation.z),
+                            new Quaternionf().rotateLocalX(rawRotation.x).rotateLocalY(rawRotation.y).rotateLocalZ(rawRotation.z),
                             toVec3(bone.transform().vecScale())
                     ),
                     bone.parentIdx(),
@@ -342,8 +342,6 @@ public class SVModel implements Model {
                 nodeModel.setSkinModel(skin);
                 sceneModel.addNode(nodeModel);
             }
-
-            System.out.println("Nodes without Parents" + sceneModel.getNodeModels().stream().filter(a -> a.getParent() == null).count());
 
             // Pass the scene to the model builder. It will take care
             // of the other model elements that are contained in the scene.
