@@ -1,38 +1,26 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model;
 
-import de.javagl.jgltf.model.GltfConstants;
-import de.javagl.jgltf.model.SkinModel;
-import de.javagl.jgltf.model.creation.AccessorModels;
 import de.javagl.jgltf.model.creation.GltfModelBuilder;
 import de.javagl.jgltf.model.creation.MaterialBuilder;
-import de.javagl.jgltf.model.creation.MeshPrimitiveBuilder;
 import de.javagl.jgltf.model.impl.DefaultMeshModel;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import de.javagl.jgltf.model.impl.DefaultSceneModel;
 import de.javagl.jgltf.model.impl.DefaultSkinModel;
-import de.javagl.jgltf.model.io.Buffers;
 import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
 import de.javagl.jgltf.model.v2.MaterialModelV2;
 import gg.generations.imct.intermediate.Model;
 import org.joml.*;
 
 import java.io.IOException;
-import java.lang.Math;
 import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
-import java.nio.ShortBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.stream.DoubleStream;
-import java.util.stream.Stream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Objects;
 
-public class SVModel implements Model {
-
-    private final List<DefaultNodeModel> skeleton;
-    private final List<Mesh> meshes = new ArrayList<>();
-    private final Map<String, Material> materials = new HashMap<>();
+public class SVModel extends Model {
 
     public SVModel(Path modelDir) {
         // Read Data
@@ -291,19 +279,19 @@ public class SVModel implements Model {
         }
     }
 
-    private static Vector3f readRGBA16Float3(ByteBuffer buf) {
-        var x = Model.halfFloatToFloat(buf.getShort()); // Ignored. Maybe padding?
-        var y = Model.halfFloatToFloat(buf.getShort());
-        var z = Model.halfFloatToFloat(buf.getShort());
-        var w = Model.halfFloatToFloat(buf.getShort());
+    private Vector3f readRGBA16Float3(ByteBuffer buf) {
+        var x = readHalfFloat(buf.getShort()); // Ignored. Maybe padding?
+        var y = readHalfFloat(buf.getShort());
+        var z = readHalfFloat(buf.getShort());
+        var w = readHalfFloat(buf.getShort());
         return new Vector3f(x, y, z);
     }
 
-    private static Vector4f readRGBA16Float4(ByteBuffer buf) {
-        var x = Model.halfFloatToFloat(buf.getShort()); // Ignored. Maybe padding?
-        var y = Model.halfFloatToFloat(buf.getShort());
-        var z = Model.halfFloatToFloat(buf.getShort());
-        var w = Model.halfFloatToFloat(buf.getShort());
+    private Vector4f readRGBA16Float4(ByteBuffer buf) {
+        var x = readHalfFloat(buf.getShort()); // Ignored. Maybe padding?
+        var y = readHalfFloat(buf.getShort());
+        var z = readHalfFloat(buf.getShort());
+        var w = readHalfFloat(buf.getShort());
         return new Vector4f(x, y, z, w);
     }
 
@@ -318,15 +306,13 @@ public class SVModel implements Model {
                         .setBaseColorTexture("file:///" + value.getTexture("BaseColorMap").filePath().replace("\\", "/"), "image/png", 0)
                         .setDoubleSided(true)
                         .build();
-                material.setName(value.name);
+                material.setName(value.name());
 
                 sceneMaterials.put(value, material);
             }
 
             var root = skeleton.get(0);
             var skin = new DefaultSkinModel();
-
-            computerInverseBindPose(root);
 
             skin.setSkeleton(root);
             for (var jointNode : skeleton.subList(1, skeleton.size() - 1)) {
@@ -339,9 +325,9 @@ public class SVModel implements Model {
                 var meshModel = new DefaultMeshModel();
                 var meshPrimitiveModel = mesh.create().build();
 
-                meshPrimitiveModel.setMaterialModel(sceneMaterials.get(mesh.material));
+                meshPrimitiveModel.setMaterialModel(sceneMaterials.get(mesh.material()));
                 meshModel.addMeshPrimitiveModel(meshPrimitiveModel);
-                meshModel.setName(mesh.name);
+                meshModel.setName(mesh.name());
 
                 // Create a node with the mesh
                 var nodeModel = new DefaultNodeModel();
@@ -367,101 +353,6 @@ public class SVModel implements Model {
         } catch (IOException e) {
             throw new RuntimeException("Failed to create %s".formatted(path), e);
         }
-    }
-
-    private record Material(
-            String name,
-            List<Texture> textures
-    ) {
-
-        public Texture getTexture(String type) {
-            for (var texture : textures) if (texture.type.equals(type)) return texture;
-            throw new RuntimeException("Texture of type " + type + " doesn't exist");
-        }
-    }
-
-    private record Texture(
-            String type,
-            String filePath
-    ) {
-    }
-
-    private record Mesh(
-            String name,
-            Material material,
-            List<Integer> indices,
-            List<Vector3f> positions,
-            List<Vector3f> normals,
-            List<Vector4f> tangents,
-            List<Vector4f> weights,
-            List<Vector4i> boneIds,
-            List<Vector3f> biNormals,
-            List<Vector2f> uvs
-    ) {
-        public MeshPrimitiveBuilder create() {
-            var weights1 = weights.stream().map(vector4f -> vector4f.div(vector4f.x + vector4f.y + vector4f.z + vector4f.w)).toList();
-            System.out.println("Weights: " + Arrays.toString(weights1.stream().flatMapToDouble(a -> DoubleStream.of(a.x + a.y + a.z + a.w)).toArray()));
-
-            return MeshPrimitiveBuilder.create()
-                    .setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
-                    .addNormals3D(toBuffer3(normals))
-//                    .addTangents4D(toBuffer4(tangents))
-                    .addAttribute("JOINTS_0", AccessorModels.create(GltfConstants.GL_UNSIGNED_SHORT, "VEC4", false, Buffers.createByteBufferFrom(toUShort4(boneIds))))
-                    .addAttribute("WEIGHTS_0", AccessorModels.create(GltfConstants.GL_FLOAT, "VEC4", false, Buffers.createByteBufferFrom(toBuffer4(weights1))))
-                    .addTexCoords02D(toBuffer2(uvs))
-                    .addPositions3D(toBuffer3(positions))
-                    .setTriangles();
-        }
-    }
-
-    private static Vector3f toVec3(Vec3 vec) {
-        return new Vector3f(vec.x(), vec.y(), vec.z());
-    }
-
-    private static ShortBuffer toUShort4(List<Vector4i> list) {
-        var buffer = ShortBuffer.wrap(new short[list.size() * 4]);
-        for (var element : list)
-            buffer
-                    .put((short) (element.x & 65535))
-                    .put((short) (element.y & 65535))
-                    .put((short) (element.z & 65535))
-                    .put((short) (element.w & 65535));
-
-        return buffer.rewind();
-    }
-
-
-    private static FloatBuffer toBuffer4(List<Vector4f> list) {
-        var buffer = FloatBuffer.wrap(new float[list.size() * 4]);
-        for (var element : list)
-            buffer
-                    .put(element.x)
-                    .put(element.y)
-                    .put(element.z)
-                    .put(element.w);
-
-        return buffer.rewind();
-    }
-
-    private static FloatBuffer toBuffer3(List<Vector3f> list) {
-        var buffer = FloatBuffer.wrap(new float[list.size() * 3]);
-        for (var element : list)
-            buffer
-                    .put(element.x)
-                    .put(element.y)
-                    .put(element.z);
-
-        return buffer.rewind();
-    }
-
-    private static FloatBuffer toBuffer2(List<Vector2f> list) {
-        var buffer = FloatBuffer.wrap(new float[list.size() * 2]);
-        for (var element : list)
-            buffer
-                    .put(element.x)
-                    .put(element.y);
-
-        return buffer.rewind();
     }
 
     private record Attribute(
@@ -528,13 +419,5 @@ public class SVModel implements Model {
         public static IndexLayout get(int i) {
             return values()[i];
         }
-    }
-
-    public static boolean isIdentityMatrix(Matrix4f matrix) {
-        return matrix.isAffine() && matrix.m00() == 1.0f && matrix.m11() == 1.0f && matrix.m22() == 1.0f
-                && matrix.m33() == 1.0f && matrix.m01() == 0.0f && matrix.m02() == 0.0f && matrix.m03() == 0.0f
-                && matrix.m10() == 0.0f && matrix.m12() == 0.0f && matrix.m13() == 0.0f && matrix.m20() == 0.0f
-                && matrix.m21() == 0.0f && matrix.m23() == 0.0f && matrix.m30() == 0.0f && matrix.m31() == 0.0f
-                && matrix.m32() == 0.0f;
     }
 }
