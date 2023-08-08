@@ -2,9 +2,16 @@ package gg.generations.imct.intermediate;
 
 import de.javagl.jgltf.model.GltfConstants;
 import de.javagl.jgltf.model.creation.AccessorModels;
+import de.javagl.jgltf.model.creation.GltfModelBuilder;
+import de.javagl.jgltf.model.creation.MaterialBuilder;
 import de.javagl.jgltf.model.creation.MeshPrimitiveBuilder;
+import de.javagl.jgltf.model.impl.DefaultMeshModel;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
+import de.javagl.jgltf.model.impl.DefaultSceneModel;
+import de.javagl.jgltf.model.impl.DefaultSkinModel;
 import de.javagl.jgltf.model.io.Buffers;
+import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
+import de.javagl.jgltf.model.v2.MaterialModelV2;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.SVModel;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.Vec3;
 import org.joml.*;
@@ -25,7 +32,64 @@ public abstract class Model {
     protected final List<SVModel.Mesh> meshes = new ArrayList<>();
     protected final Map<String, SVModel.Material> materials = new HashMap<>();
 
-    public abstract void writeModel(Path path);
+    public void writeModel(Path path) {
+        try {
+            var sceneModel = new DefaultSceneModel();
+            var sceneMaterials = new HashMap<Material, MaterialModelV2>();
+
+            for (var value : materials.values()) {
+                var material = MaterialBuilder.create()
+                        .setBaseColorTexture("file:///" + value.getTexture("BaseColorMap").filePath().replace("\\", "/"), "image/png", 0)
+                        .setDoubleSided(true)
+                        .build();
+                material.setName(value.name());
+
+                sceneMaterials.put(value, material);
+            }
+
+            var root = skeleton.get(0);
+            var skin = new DefaultSkinModel();
+
+            skin.setSkeleton(root);
+            for (var jointNode : skeleton.subList(1, skeleton.size() - 1)) {
+                skin.addJoint(jointNode);
+//                sceneModel.addNode(jointNode);
+            }
+
+
+            for (var mesh : meshes) {
+                var meshModel = new DefaultMeshModel();
+                var meshPrimitiveModel = mesh.create().build();
+
+                meshPrimitiveModel.setMaterialModel(sceneMaterials.get(mesh.material()));
+                meshModel.addMeshPrimitiveModel(meshPrimitiveModel);
+                meshModel.setName(mesh.name());
+
+                // Create a node with the mesh
+                var nodeModel = new DefaultNodeModel();
+                nodeModel.setName(mesh.name());
+                nodeModel.addMeshModel(meshModel);
+                nodeModel.setSkinModel(skin);
+                sceneModel.addNode(nodeModel);
+            }
+
+            sceneModel.addNode(root);
+
+            // Pass the scene to the model builder. It will take care
+            // of the other model elements that are contained in the scene.
+            // (I.e. the mesh primitive and its accessors, and the material
+            // and its textures)
+            var gltfModelBuilder = GltfModelBuilder.create();
+            gltfModelBuilder.addSkinModel(skin);
+            gltfModelBuilder.addSceneModel(sceneModel);
+            var gltfModel = gltfModelBuilder.build();
+
+            var gltfWriter = new GltfModelWriterV2();
+            gltfWriter.writeBinary(gltfModel, Files.newOutputStream(path));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create %s".formatted(path), e);
+        }
+    }
 
     protected ByteBuffer read(Path path) {
         try {

@@ -1,22 +1,12 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model;
 
-import de.javagl.jgltf.model.creation.GltfModelBuilder;
-import de.javagl.jgltf.model.creation.MaterialBuilder;
-import de.javagl.jgltf.model.impl.DefaultMeshModel;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
-import de.javagl.jgltf.model.impl.DefaultSceneModel;
-import de.javagl.jgltf.model.impl.DefaultSkinModel;
-import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
-import de.javagl.jgltf.model.v2.MaterialModelV2;
 import gg.generations.imct.intermediate.Model;
 import org.joml.*;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -194,9 +184,7 @@ public class SVModel extends Model {
                                     var y = vertexBuffer.getFloat();
                                     var z = vertexBuffer.getFloat();
                                     positions.add(new Vector3f(x, y, z));
-                                } else {
-                                    throw new RuntimeException("Unexpected position format: " + attribute.type);
-                                }
+                                } else throw new RuntimeException("Unexpected position format: " + attribute.type);
                             }
 
                             case COLOR -> {
@@ -205,25 +193,19 @@ public class SVModel extends Model {
                                     var y = vertexBuffer.get() & 0xFF;
                                     var z = vertexBuffer.get() & 0xFF;
                                     var w = vertexBuffer.get() & 0xFF;
-                                } else {
-                                    throw new RuntimeException("Unexpected color format: " + attribute.type);
-                                }
+                                } else throw new RuntimeException("Unexpected color format: " + attribute.type);
                             }
 
                             case NORMAL -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
                                     normals.add(readRGBA16Float3(vertexBuffer));
-                                } else {
-                                    throw new RuntimeException("Unexpected normal format: " + attribute.type);
-                                }
+                                } else throw new RuntimeException("Unexpected normal format: " + attribute.type);
                             }
 
                             case TANGENT -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
                                     tangents.add(readRGBA16Float4(vertexBuffer));
-                                } else {
-                                    throw new RuntimeException("Unexpected tangent format: " + attribute.type);
-                                }
+                                } else throw new RuntimeException("Unexpected tangent format: " + attribute.type);
                             }
 
                             case TEXCOORD -> {
@@ -231,9 +213,7 @@ public class SVModel extends Model {
                                     var x = vertexBuffer.getFloat();
                                     var y = 1.0f - vertexBuffer.getFloat();
                                     uvs.add(new Vector2f(x, y));
-                                } else {
-                                    throw new RuntimeException("Unexpected uv format: " + attribute.type);
-                                }
+                                } else throw new RuntimeException("Unexpected uv format: " + attribute.type);
                             }
 
                             case BLEND_INDICES -> {
@@ -243,24 +223,14 @@ public class SVModel extends Model {
                                     var y = vertexBuffer.get() & 0xFF;
                                     var z = vertexBuffer.get() & 0xFF;
                                     boneIds.add(new Vector4i(x, y, z, w));
-                                } else {
-                                    throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
-                                }
+                                } else throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
                             }
 
                             case BLEND_WEIGHTS -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_UNORM) {
-                                    var w = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
-                                    var x = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
-                                    var y = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
-                                    var z = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
-                                    var weight = new Vector4f(x, y, z, w);
-                                    var amount = weight.x + weight.y + weight.z + weight.w;
-                                    weight.div(amount);
+                                    var weight = getWeights(vertexBuffer);
                                     weights.add(weight);
-                                } else {
-                                    throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
-                                }
+                                } else throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
                             }
 
                             default -> throw new IllegalStateException("Unexpected value: " + attribute);
@@ -279,6 +249,17 @@ public class SVModel extends Model {
         }
     }
 
+    private Vector4f getWeights(ByteBuffer vertexBuffer) {
+        var w = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+        var x = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+        var y = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+        var z = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+        var weight = new Vector4f(x, y, z, w);
+        var amount = weight.x + weight.y + weight.z + weight.w;
+        weight.div(amount);
+        return weight;
+    }
+
     private Vector3f readRGBA16Float3(ByteBuffer buf) {
         var x = readHalfFloat(buf.getShort()); // Ignored. Maybe padding?
         var y = readHalfFloat(buf.getShort());
@@ -293,66 +274,6 @@ public class SVModel extends Model {
         var z = readHalfFloat(buf.getShort());
         var w = readHalfFloat(buf.getShort());
         return new Vector4f(x, y, z, w);
-    }
-
-    @Override
-    public void writeModel(Path path) {
-        try {
-            var sceneModel = new DefaultSceneModel();
-            var sceneMaterials = new HashMap<Material, MaterialModelV2>();
-
-            for (var value : materials.values()) {
-                var material = MaterialBuilder.create()
-                        .setBaseColorTexture("file:///" + value.getTexture("BaseColorMap").filePath().replace("\\", "/"), "image/png", 0)
-                        .setDoubleSided(true)
-                        .build();
-                material.setName(value.name());
-
-                sceneMaterials.put(value, material);
-            }
-
-            var root = skeleton.get(0);
-            var skin = new DefaultSkinModel();
-
-            skin.setSkeleton(root);
-            for (var jointNode : skeleton.subList(1, skeleton.size() - 1)) {
-                skin.addJoint(jointNode);
-//                sceneModel.addNode(jointNode);
-            }
-
-
-            for (var mesh : meshes) {
-                var meshModel = new DefaultMeshModel();
-                var meshPrimitiveModel = mesh.create().build();
-
-                meshPrimitiveModel.setMaterialModel(sceneMaterials.get(mesh.material()));
-                meshModel.addMeshPrimitiveModel(meshPrimitiveModel);
-                meshModel.setName(mesh.name());
-
-                // Create a node with the mesh
-                var nodeModel = new DefaultNodeModel();
-                nodeModel.setName(mesh.name());
-                nodeModel.addMeshModel(meshModel);
-                nodeModel.setSkinModel(skin);
-                sceneModel.addNode(nodeModel);
-            }
-
-            sceneModel.addNode(root);
-
-            // Pass the scene to the model builder. It will take care
-            // of the other model elements that are contained in the scene.
-            // (I.e. the mesh primitive and its accessors, and the material
-            // and its textures)
-            var gltfModelBuilder = GltfModelBuilder.create();
-            gltfModelBuilder.addSkinModel(skin);
-            gltfModelBuilder.addSceneModel(sceneModel);
-            var gltfModel = gltfModelBuilder.build();
-
-            var gltfWriter = new GltfModelWriterV2();
-            gltfWriter.writeBinary(gltfModel, Files.newOutputStream(path));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to create %s".formatted(path), e);
-        }
     }
 
     private record Attribute(
