@@ -1,6 +1,9 @@
 package gg.generations.imct.intermediate;
 
 import de.javagl.jgltf.model.GltfConstants;
+import de.javagl.jgltf.model.MathUtils;
+import de.javagl.jgltf.model.NodeModel;
+import de.javagl.jgltf.model.Utils;
 import de.javagl.jgltf.model.creation.AccessorModels;
 import de.javagl.jgltf.model.creation.GltfModelBuilder;
 import de.javagl.jgltf.model.creation.MaterialBuilder;
@@ -12,6 +15,7 @@ import de.javagl.jgltf.model.impl.DefaultSkinModel;
 import de.javagl.jgltf.model.io.Buffers;
 import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
 import de.javagl.jgltf.model.v2.MaterialModelV2;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.Material;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.SVModel;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.Vec3;
 import org.joml.*;
@@ -29,6 +33,9 @@ import java.util.stream.DoubleStream;
 public abstract class Model {
 
     protected List<DefaultNodeModel> skeleton;
+
+    protected List<DefaultNodeModel> joints;
+
     protected final List<SVModel.Mesh> meshes = new ArrayList<>();
     protected final Map<String, SVModel.Material> materials = new HashMap<>();
 
@@ -47,15 +54,34 @@ public abstract class Model {
                 sceneMaterials.put(value, material);
             }
 
-            var root = skeleton.get(0);
             var skin = new DefaultSkinModel();
+            if(joints.get(0).getParent() != null) skin.addJoint(joints.get(0).getParent());
+            joints.forEach(skin::addJoint);
 
-            skin.setSkeleton(root);
-            for (var jointNode : skeleton.subList(1, skeleton.size() - 1)) {
-                skin.addJoint(jointNode);
-//                sceneModel.addNode(jointNode);
+            var ibm = new HashMap<DefaultNodeModel, Matrix4f>();
+//            computeInverseBindPose(root, new Matrix4f(), ibm);
+
+            var root = skeleton.get(0);
+
+            sceneModel.addNode(root);
+            var ibmBuffer = FloatBuffer.allocate(16 * (joints.size() + 1));
+
+            List<Matrix4f> ibms = new ArrayList<>();
+
+            var arr = new float[16];
+
+            for (int i = 0; i < joints.size(); i++) {
+                var jointNode = joints.get(i);
+                var matrix = computeGlobalTransform(jointNode, null/*jointRoot*/).invert();
+                System.out.println("Checking IBM: %s - [%s]".formatted(i, matrix));
+                matrix.get(arr);
+                ibmBuffer.put(arr);
+                ibms.add(matrix);
             }
 
+            ibmBuffer.rewind();
+
+            skin.setInverseBindMatrices(AccessorModels.create(GltfConstants.GL_FLOAT, "MAT4", false, Buffers.createByteBufferFrom(ibmBuffer)));
 
             for (var mesh : meshes) {
                 var meshModel = new DefaultMeshModel();
@@ -70,10 +96,9 @@ public abstract class Model {
                 nodeModel.setName(mesh.name());
                 nodeModel.addMeshModel(meshModel);
                 nodeModel.setSkinModel(skin);
-                sceneModel.addNode(nodeModel);
+                root.addChild(nodeModel);
             }
 
-            sceneModel.addNode(root);
 
             // Pass the scene to the model builder. It will take care
             // of the other model elements that are contained in the scene.
@@ -89,6 +114,21 @@ public abstract class Model {
         } catch (IOException e) {
             throw new RuntimeException("Failed to create %s".formatted(path), e);
         }
+    }
+
+    private Matrix4f computeGlobalTransform(DefaultNodeModel jointNode, DefaultNodeModel root) {
+//        float localResult[] = new float[16];
+//        float tempLocalTransform[] = new float[16];
+//        NodeModel currentNode = jointNode;
+//        MathUtils.setIdentity4x4(localResult);
+//        while (currentNode != null && currentNode != root)
+//        {
+//            currentNode.computeLocalTransform(tempLocalTransform);
+//            MathUtils.mul4x4(
+//                    tempLocalTransform, localResult, localResult);
+//            currentNode = currentNode.getParent();
+//        }
+        return new Matrix4f().set(jointNode.computeGlobalTransform(null));
     }
 
     protected ByteBuffer read(Path path) {
@@ -215,14 +255,11 @@ public abstract class Model {
             List<Vector2f> uvs
     ) {
         public MeshPrimitiveBuilder create() {
-            var weights1 = weights.stream().map(vector4f -> vector4f.div(vector4f.x + vector4f.y + vector4f.z + vector4f.w)).toList();
-            System.out.println("Weights: " + Arrays.toString(weights1.stream().flatMapToDouble(a -> DoubleStream.of(a.x + a.y + a.z + a.w)).toArray()));
-
             return MeshPrimitiveBuilder.create()
                     .setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
                     .addNormals3D(toBuffer3(normals))
                     .addAttribute("JOINTS_0", AccessorModels.create(GltfConstants.GL_UNSIGNED_SHORT, "VEC4", false, Buffers.createByteBufferFrom(toUShort4(boneIds))))
-                    .addAttribute("WEIGHTS_0", AccessorModels.create(GltfConstants.GL_FLOAT, "VEC4", false, Buffers.createByteBufferFrom(toBuffer4(weights1))))
+                    .addAttribute("WEIGHTS_0", AccessorModels.create(GltfConstants.GL_FLOAT, "VEC4", false, Buffers.createByteBufferFrom(toBuffer4(weights))))
                     .addTexCoords02D(toBuffer2(uvs))
                     .addPositions3D(toBuffer3(positions))
                     .setTriangles();

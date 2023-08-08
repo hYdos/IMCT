@@ -29,7 +29,9 @@ public class SVModel extends Model {
 
         record Bone(
                 String name,
-                Matrix4f matrix,
+                Vector3f translation,
+                Quaternionf rotation,
+                Vector3f scale,
                 int parent,
                 int rigIdx,
                 long type,
@@ -44,14 +46,11 @@ public class SVModel extends Model {
             var bone = trskl.transformNodes(i);
 
             var rawRotation = toVec3(bone.transform().vecRot());
-
             bones.add(new Bone(
                     bone.name(),
-                    new Matrix4f().translationRotateScale(
-                            toVec3(bone.transform().vecTranslate()),
-                            new Quaternionf().rotateLocalX(rawRotation.x).rotateLocalY(rawRotation.y).rotateLocalZ(rawRotation.z),
-                            toVec3(bone.transform().vecScale())
-                    ),
+                    toVec3(bone.transform().vecTranslate()),
+                    new Quaternionf().rotateLocalX(rawRotation.x).rotateLocalY(rawRotation.y).rotateLocalZ(rawRotation.z),
+                    toVec3(bone.transform().vecScale()),
                     bone.parentIdx(),
                     bone.rigIdx(),
                     bone.type(),
@@ -67,23 +66,41 @@ public class SVModel extends Model {
             }
         }
 
+        joints = new ArrayList<>(bones.stream().mapToInt(a -> a.rigIdx).max().getAsInt() + 1);
+
+
         // Second bone pass. Convert into skeleton
-        this.skeleton = bones.stream().map(bone -> {
+
+        this.skeleton = new ArrayList<>();
+
+        for(var bone : bones) {
             var node = new DefaultNodeModel();
             node.setName(bone.name);
 
-            var transform = bone.matrix();
+            var t = bone.translation;
+            var r = bone.rotation;
+            var s = bone.scale;
 
-            if (!isIdentityMatrix(transform))
-                node.setMatrix(new float[]{
-                        transform.m00(), transform.m01(), transform.m02(), transform.m03(),
-                        transform.m10(), transform.m11(), transform.m12(), transform.m13(),
-                        transform.m20(), transform.m21(), transform.m22(), transform.m23(),
-                        transform.m30(), transform.m31(), transform.m32(), transform.m33()
-                });
+            if(!(t.x == 0 && t.y == 0 && t.z == 0)) {
+                node.setTranslation(new float[] { t.x, t.y, t.z});
+            }
 
-            return node;
-        }).toList();
+            if(!(r.x == 0 && r.y == 0 && r.z == 0 && r.w == 1)) {
+                node.setRotation(new float[] { r.x, r.y, r.z, r.w });
+            }
+
+            if(!(s.x == 1 && s.y == 1 && s.z == 1)) {
+                node.setScale(new float[] { s.x, s.y, s.z});
+            }
+
+            if(bone.rigIdx != -1) {
+                System.out.println(bone.name + " " + bone.rigIdx);
+
+                joints.add(bone.rigIdx, node);
+            }
+
+            skeleton.add(node);
+        }
 
         for (int i = 0; i < skeleton.size(); i++) {
             var node = skeleton.get(i);
@@ -92,6 +109,15 @@ public class SVModel extends Model {
             var parent = skeleton.get(bone.parent);
             parent.addChild(node);
         }
+
+        var rootJoint = joints.get(0);
+
+//        if(rootJoint.getParent() != null) {
+//            var temp = new ArrayList<DefaultNodeModel>(joints.size() + 1);
+//            temp.add((DefaultNodeModel) rootJoint.getParent());
+//            temp.addAll(joints);
+//            joints = temp;
+//        }
 
         // Process extra material variants (shiny)
         //var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
@@ -109,11 +135,11 @@ public class SVModel extends Model {
                     System.out.println("Material Properties");
                     for (int j = 0; j < rawMaterial.float4ParameterLength(); j++) {
                         var colorParam = rawMaterial.float4Parameter(j);
-                        System.out.println("Name: " + colorParam.colorName());
-                        System.out.println("R: " + colorParam.colorValue().r() * 255);
-                        System.out.println("G: " + colorParam.colorValue().g() * 255);
-                        System.out.println("B: " + colorParam.colorValue().b() * 255);
-                        System.out.println("A: " + colorParam.colorValue().a() * 255);
+//                        System.out.println("Name: " + colorParam.colorName());
+//                        System.out.println("R: " + colorParam.colorValue().r() * 255);
+//                        System.out.println("G: " + colorParam.colorValue().g() * 255);
+//                        System.out.println("B: " + colorParam.colorValue().b() * 255);
+//                        System.out.println("A: " + colorParam.colorValue().a() * 255);
                     }
 
                     System.out.println();
