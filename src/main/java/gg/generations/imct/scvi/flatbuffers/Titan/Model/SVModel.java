@@ -254,10 +254,7 @@ public class SVModel extends Model {
         var x = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
         var y = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
         var z = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
-        var weight = new Vector4f(x, y, z, w);
-        var amount = weight.x + weight.y + weight.z + weight.w;
-        weight.div(amount);
-        return weight;
+        return new Vector4f(x, y, z, w).div(x + y + z + w);
     }
 
     private Vector3f readRGBA16Float3(ByteBuffer buf) {
