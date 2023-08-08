@@ -19,6 +19,7 @@ import gg.generations.imct.scvi.flatbuffers.Titan.Model.Material;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.SVModel;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.Vec3;
 import org.joml.*;
+import org.joml.Math;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -55,28 +56,21 @@ public abstract class Model {
             }
 
             var skin = new DefaultSkinModel();
-            if(joints.get(0).getParent() != null) skin.addJoint(joints.get(0).getParent());
             joints.forEach(skin::addJoint);
-
-            var ibm = new HashMap<DefaultNodeModel, Matrix4f>();
-//            computeInverseBindPose(root, new Matrix4f(), ibm);
 
             var root = skeleton.get(0);
 
             sceneModel.addNode(root);
-            var ibmBuffer = FloatBuffer.allocate(16 * (joints.size() + 1));
-
-            List<Matrix4f> ibms = new ArrayList<>();
+            var ibmBuffer = FloatBuffer.allocate(16 * (skin.getJoints().size()));
 
             var arr = new float[16];
 
-            for (int i = 0; i < joints.size(); i++) {
-                var jointNode = joints.get(i);
-                var matrix = computeGlobalTransform(jointNode, null/*jointRoot*/).invert();
-                System.out.println("Checking IBM: %s - [%s]".formatted(i, matrix));
+            var matrix = new Matrix4f();
+
+            for (DefaultNodeModel jointNode : joints) {
+                matrix.set(jointNode.computeGlobalTransform(null)).invert();
                 matrix.get(arr);
                 ibmBuffer.put(arr);
-                ibms.add(matrix);
             }
 
             ibmBuffer.rewind();
@@ -116,21 +110,6 @@ public abstract class Model {
         }
     }
 
-    private Matrix4f computeGlobalTransform(DefaultNodeModel jointNode, DefaultNodeModel root) {
-//        float localResult[] = new float[16];
-//        float tempLocalTransform[] = new float[16];
-//        NodeModel currentNode = jointNode;
-//        MathUtils.setIdentity4x4(localResult);
-//        while (currentNode != null && currentNode != root)
-//        {
-//            currentNode.computeLocalTransform(tempLocalTransform);
-//            MathUtils.mul4x4(
-//                    tempLocalTransform, localResult, localResult);
-//            currentNode = currentNode.getParent();
-//        }
-        return new Matrix4f().set(jointNode.computeGlobalTransform(null));
-    }
-
     protected ByteBuffer read(Path path) {
         try {
             return ByteBuffer.wrap(Files.readAllBytes(path));
@@ -166,14 +145,6 @@ public abstract class Model {
         var mantissa = m << 13;
         var floatValueBits = (s << 31) | ((exponent + 127) << 23) | mantissa;
         return Float.intBitsToFloat(floatValueBits);
-    }
-
-    protected boolean isIdentityMatrix(Matrix4f matrix) {
-        return matrix.isAffine() && matrix.m00() == 1.0f && matrix.m11() == 1.0f && matrix.m22() == 1.0f
-               && matrix.m33() == 1.0f && matrix.m01() == 0.0f && matrix.m02() == 0.0f && matrix.m03() == 0.0f
-               && matrix.m10() == 0.0f && matrix.m12() == 0.0f && matrix.m13() == 0.0f && matrix.m20() == 0.0f
-               && matrix.m21() == 0.0f && matrix.m23() == 0.0f && matrix.m30() == 0.0f && matrix.m31() == 0.0f
-               && matrix.m32() == 0.0f;
     }
 
     protected static ShortBuffer toUShort4(List<Vector4i> list) {

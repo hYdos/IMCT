@@ -3,6 +3,7 @@ package gg.generations.imct.scvi.flatbuffers.Titan.Model;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import gg.generations.imct.intermediate.Model;
 import org.joml.*;
+import org.joml.Math;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -66,12 +67,14 @@ public class SVModel extends Model {
             }
         }
 
-        joints = new ArrayList<>(bones.stream().mapToInt(a -> a.rigIdx).max().getAsInt() + 1);
+        joints = new ArrayList<>(bones.stream().mapToInt(a -> a.rigIdx).max().getAsInt());
 
 
         // Second bone pass. Convert into skeleton
 
         this.skeleton = new ArrayList<>();
+
+        var arr = new float[16];
 
         for(var bone : bones) {
             var node = new DefaultNodeModel();
@@ -94,8 +97,6 @@ public class SVModel extends Model {
             }
 
             if(bone.rigIdx != -1) {
-                System.out.println(bone.name + " " + bone.rigIdx);
-
                 joints.add(bone.rigIdx, node);
             }
 
@@ -109,15 +110,6 @@ public class SVModel extends Model {
             var parent = skeleton.get(bone.parent);
             parent.addChild(node);
         }
-
-        var rootJoint = joints.get(0);
-
-//        if(rootJoint.getParent() != null) {
-//            var temp = new ArrayList<DefaultNodeModel>(joints.size() + 1);
-//            temp.add((DefaultNodeModel) rootJoint.getParent());
-//            temp.addAll(joints);
-//            joints = temp;
-//        }
 
         // Process extra material variants (shiny)
         //var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
@@ -135,11 +127,11 @@ public class SVModel extends Model {
                     System.out.println("Material Properties");
                     for (int j = 0; j < rawMaterial.float4ParameterLength(); j++) {
                         var colorParam = rawMaterial.float4Parameter(j);
-//                        System.out.println("Name: " + colorParam.colorName());
-//                        System.out.println("R: " + colorParam.colorValue().r() * 255);
-//                        System.out.println("G: " + colorParam.colorValue().g() * 255);
-//                        System.out.println("B: " + colorParam.colorValue().b() * 255);
-//                        System.out.println("A: " + colorParam.colorValue().a() * 255);
+                        System.out.println("Name: " + colorParam.colorName());
+                        System.out.println("R: " + colorParam.colorValue().r() * 255);
+                        System.out.println("G: " + colorParam.colorValue().g() * 255);
+                        System.out.println("B: " + colorParam.colorValue().b() * 255);
+                        System.out.println("A: " + colorParam.colorValue().a() * 255);
                     }
 
                     System.out.println();
