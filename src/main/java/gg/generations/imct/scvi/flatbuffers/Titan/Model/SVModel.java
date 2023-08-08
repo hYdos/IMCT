@@ -1,6 +1,7 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model;
 
 import de.javagl.jgltf.model.GltfConstants;
+import de.javagl.jgltf.model.SkinModel;
 import de.javagl.jgltf.model.creation.AccessorModels;
 import de.javagl.jgltf.model.creation.GltfModelBuilder;
 import de.javagl.jgltf.model.creation.MaterialBuilder;
@@ -265,7 +266,10 @@ public class SVModel implements Model {
                                     var x = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
                                     var y = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
                                     var z = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
-                                    weights.add(new Vector4f(x, y, z, w));
+                                    var weight = new Vector4f(x, y, z, w);
+                                    var amount = weight.x + weight.y + weight.z + weight.w;
+                                    weight.div(amount);
+                                    weights.add(weight);
                                 } else {
                                     throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
                                 }
@@ -319,11 +323,15 @@ public class SVModel implements Model {
                 sceneMaterials.put(value, material);
             }
 
+            var root = skeleton.get(0);
             var skin = new DefaultSkinModel();
-            skin.setSkeleton(skeleton.get(0));
+
+            computerInverseBindPose(root);
+
+            skin.setSkeleton(root);
             for (var jointNode : skeleton.subList(1, skeleton.size() - 1)) {
                 skin.addJoint(jointNode);
-                sceneModel.addNode(jointNode);
+//                sceneModel.addNode(jointNode);
             }
 
 
@@ -342,6 +350,8 @@ public class SVModel implements Model {
                 nodeModel.setSkinModel(skin);
                 sceneModel.addNode(nodeModel);
             }
+
+            sceneModel.addNode(root);
 
             // Pass the scene to the model builder. It will take care
             // of the other model elements that are contained in the scene.
