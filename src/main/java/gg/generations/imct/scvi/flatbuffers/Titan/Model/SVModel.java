@@ -1,34 +1,17 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model;
 
-import de.javagl.jgltf.model.creation.GltfModelBuilder;
-import de.javagl.jgltf.model.creation.MaterialBuilder;
-import de.javagl.jgltf.model.creation.MeshPrimitiveBuilder;
-import de.javagl.jgltf.model.impl.DefaultMeshModel;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
-import de.javagl.jgltf.model.impl.DefaultSceneModel;
-import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
-import de.javagl.jgltf.model.v2.MaterialModelV2;
 import gg.generations.imct.intermediate.Model;
-import org.joml.Vector2f;
-import org.joml.Vector3f;
-import org.joml.Vector4f;
-import org.joml.Vector4i;
+import org.joml.*;
+import org.joml.Math;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
-public class SVModel implements Model {
-
-    private final List<Mesh> meshes = new ArrayList<>();
-    private final Map<String, Material> materials = new HashMap<>();
+public class SVModel extends Model {
 
     public SVModel(Path modelDir) {
         // Read Data
@@ -43,6 +26,89 @@ public class SVModel implements Model {
             var meshD = TRMBF.getRootAsTRMBF(read(modelDir.resolve(meshName.replace(".trmsh", ".trmbf"))));
             meshInfo.add(meshI);
             meshData.add(meshD);
+        }
+
+        record Bone(
+                String name,
+                Vector3f translation,
+                Quaternionf rotation,
+                Vector3f scale,
+                int parent,
+                int rigIdx,
+                long type,
+                List<Bone> children
+        ) {
+        }
+
+        List<Bone> bones = new ArrayList<>();
+
+        // First bone pass. Get all raw info into a normal format
+        for (int i = 0; i < trskl.transformNodesLength(); i++) {
+            var bone = trskl.transformNodes(i);
+
+            var rawRotation = toVec3(bone.transform().vecRot());
+            bones.add(new Bone(
+                    bone.name(),
+                    toVec3(bone.transform().vecTranslate()),
+                    new Quaternionf().rotateLocalX(rawRotation.x).rotateLocalY(rawRotation.y).rotateLocalZ(rawRotation.z),
+                    toVec3(bone.transform().vecScale()),
+                    bone.parentIdx(),
+                    bone.rigIdx(),
+                    bone.type(),
+                    new ArrayList<>()
+            ));
+        }
+
+        // Second bone pass. Add children
+        for (var value : bones) {
+            if (value.parent() != -1) {
+                var parent = bones.get(value.parent());
+                if (parent != null) parent.children.add(value);
+            }
+        }
+
+        joints = new ArrayList<>(bones.stream().mapToInt(a -> a.rigIdx).max().getAsInt());
+
+
+        // Second bone pass. Convert into skeleton
+
+        this.skeleton = new ArrayList<>();
+
+        var arr = new float[16];
+
+        for(var bone : bones) {
+            var node = new DefaultNodeModel();
+            node.setName(bone.name);
+
+            var t = bone.translation;
+            var r = bone.rotation;
+            var s = bone.scale;
+
+            if(!(t.x == 0 && t.y == 0 && t.z == 0)) {
+                node.setTranslation(new float[] { t.x, t.y, t.z});
+            }
+
+            if(!(r.x == 0 && r.y == 0 && r.z == 0 && r.w == 1)) {
+                node.setRotation(new float[] { r.x, r.y, r.z, r.w });
+            }
+
+            if(!(s.x == 1 && s.y == 1 && s.z == 1)) {
+                node.setScale(new float[] { s.x, s.y, s.z});
+            }
+
+            if(bone.rigIdx != -1) {
+                joints.add(bone.rigIdx, node);
+            }
+
+            skeleton.add(node);
+        }
+
+        for (int i = 0; i < skeleton.size(); i++) {
+            var node = skeleton.get(i);
+            var bone = bones.get(i);
+            if (bone.parent == -1) continue;
+            var parent = skeleton.get(bone.parent);
+            parent.addChild(node);
         }
 
         // Process extra material variants (shiny)
@@ -101,243 +167,142 @@ public class SVModel implements Model {
 
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
-            System.out.println("Processing Mesh " + i);
-            var info = meshInfo.get(i).meshes(0);
-            var idxLayout = IndexLayout.get((int) info.polygonType());
-            var rawAttributes = info.attributes(0);
-            var data = meshData.get(i).buffers(0);
-            var vertexBuffer = data.vertexBuffer(0).bufferAsByteBuffer();
-            var idxBuffer = data.indexBuffer(0);
+            System.out.println("Processing Mesh Info " + i);
+            for (int mesh = 0; mesh < meshInfo.get(i).meshesLength(); mesh++) {
+                System.out.println("Processing Mesh " + i);
+                var info = meshInfo.get(i).meshes(mesh);
+                var data = meshData.get(i).buffers(mesh);
+                var vertexBuffer = data.vertexBuffer(0).bufferAsByteBuffer();
+                var idxBuffer = data.indexBuffer(0);
 
-            var attributes = new ArrayList<Attribute>();
-            for (var j = 0; j < rawAttributes.attrsLength(); j++) {
-                attributes.add(new Attribute(
-                        AttributeType.get(rawAttributes.attrs(j).attribute()),
-                        AttributeSize.get(rawAttributes.attrs(j).type())
-                ));
-            }
+                var idxLayout = IndexLayout.get((int) info.polygonType());
+                var rawAttributes = info.attributes(0);
 
-            var indices = new ArrayList<Integer>();
-            var positions = new ArrayList<Vector3f>();
-            var normals = new ArrayList<Vector3f>();
-            var tangents = new ArrayList<Vector3f>();
-            var binormals = new ArrayList<Vector3f>();
-            var uvs = new ArrayList<Vector2f>();
 
-            var realIdxBuffer = idxBuffer.bufferAsByteBuffer();
-            for (var j = 0; j < idxBuffer.bufferLength() / idxLayout.size; j++) {
-                switch (idxLayout) {
-                    case UINT16 -> indices.add(realIdxBuffer.getShort() & 0xFFFF);
-                    case UINT32 -> indices.add(realIdxBuffer.getInt() & 0xFFFFFFFF);
-                    default -> throw new RuntimeException("no");
+                var attributes = new ArrayList<Attribute>();
+                for (var j = 0; j < rawAttributes.attrsLength(); j++) {
+                    attributes.add(new Attribute(
+                            AttributeType.get(rawAttributes.attrs(j).attribute()),
+                            AttributeSize.get(rawAttributes.attrs(j).type())
+                    ));
                 }
-            }
 
-            var vertexCount = data.vertexBuffer(0).bufferLength() / info.attributes(0).size(0).size();
+                var indices = new ArrayList<Integer>();
+                var positions = new ArrayList<Vector3f>();
+                var normals = new ArrayList<Vector3f>();
+                var tangents = new ArrayList<Vector4f>();
+                var weights = new ArrayList<Vector4f>();
+                var boneIds = new ArrayList<Vector4i>();
+                var binormals = new ArrayList<Vector3f>();
+                var uvs = new ArrayList<Vector2f>();
 
-            for (var j = 0; j < vertexCount; j++) {
-                for (var attribute : attributes) {
-                    switch (attribute.type) {
-                        case POSITION -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGB_32_FLOAT) {
-                                var x = vertexBuffer.getFloat();
-                                var y = vertexBuffer.getFloat();
-                                var z = vertexBuffer.getFloat();
-                                positions.add(new Vector3f(x, y, z));
-                            } else {
-                                throw new RuntimeException("Unexpected position format: " + attribute.type);
-                            }
-                        }
-
-                        case COLOR -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNORM) {
-                                var x = vertexBuffer.get() & 0xFF;
-                                var y = vertexBuffer.get() & 0xFF;
-                                var z = vertexBuffer.get() & 0xFF;
-                                var w = vertexBuffer.get() & 0xFF;
-                            } else {
-                                throw new RuntimeException("Unexpected color format: " + attribute.type);
-                            }
-                        }
-
-                        case NORMAL -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
-                                normals.add(readRGBA16Float(vertexBuffer));
-                            } else {
-                                throw new RuntimeException("Unexpected normal format: " + attribute.type);
-                            }
-                        }
-
-                        case TANGENT -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
-                                tangents.add(readRGBA16Float(vertexBuffer));
-                            } else {
-                                throw new RuntimeException("Unexpected tangent format: " + attribute.type);
-                            }
-                        }
-
-                        case TEXCOORD -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RG_32_FLOAT) {
-                                var x = vertexBuffer.getFloat();
-                                var y = 1.0f - vertexBuffer.getFloat();
-                                uvs.add(new Vector2f(x, y));
-                            } else {
-                                throw new RuntimeException("Unexpected uv format: " + attribute.type);
-                            }
-                        }
-
-                        case BLEND_INDICES -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNSIGNED) {
-                                var w = vertexBuffer.get();
-                                var x = vertexBuffer.get();
-                                var y = vertexBuffer.get();
-                                var z = vertexBuffer.get();
-                                // TODO: add these
-                            } else {
-                                throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
-                            }
-                        }
-
-                        case BLEND_WEIGHTS -> {
-                            if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_UNORM) {
-                                var w = vertexBuffer.getShort();
-                                var x = vertexBuffer.getShort();
-                                var y = vertexBuffer.getShort();
-                                var z = vertexBuffer.getShort();
-                                // TODO: add these
-                            } else {
-                                throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
-                            }
-                        }
-
-                        default -> throw new IllegalStateException("Unexpected value: " + attribute);
+                var realIdxBuffer = idxBuffer.bufferAsByteBuffer();
+                for (var j = 0; j < idxBuffer.bufferLength() / idxLayout.size; j++) {
+                    switch (idxLayout) {
+                        case UINT16 -> indices.add(realIdxBuffer.getShort() & 0xFFFF);
+                        case UINT32 -> indices.add(realIdxBuffer.getInt() & 0xFFFFFFFF);
+                        default -> throw new RuntimeException("no");
                     }
                 }
-            }
 
-            // Sub meshes
-            for (int j = 0; j < info.materialsLength(); j++) {
-                var subMesh = info.materials(j);
-                var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
-                if (!Objects.requireNonNull(info.meshName()).contains("lod"))
-                    meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, binormals, uvs));
+                var vertexCount = data.vertexBuffer(0).bufferLength() / info.attributes(0).size(0).size();
+
+                for (var j = 0; j < vertexCount; j++) {
+                    for (var attribute : attributes) {
+                        switch (attribute.type) {
+                            case POSITION -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGB_32_FLOAT) {
+                                    var x = vertexBuffer.getFloat();
+                                    var y = vertexBuffer.getFloat();
+                                    var z = vertexBuffer.getFloat();
+                                    positions.add(new Vector3f(x, y, z));
+                                } else throw new RuntimeException("Unexpected position format: " + attribute.type);
+                            }
+
+                            case COLOR -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNORM) {
+                                    var x = vertexBuffer.get() & 0xFF;
+                                    var y = vertexBuffer.get() & 0xFF;
+                                    var z = vertexBuffer.get() & 0xFF;
+                                    var w = vertexBuffer.get() & 0xFF;
+                                } else throw new RuntimeException("Unexpected color format: " + attribute.type);
+                            }
+
+                            case NORMAL -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
+                                    normals.add(readRGBA16Float3(vertexBuffer));
+                                } else throw new RuntimeException("Unexpected normal format: " + attribute.type);
+                            }
+
+                            case TANGENT -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
+                                    tangents.add(readRGBA16Float4(vertexBuffer));
+                                } else throw new RuntimeException("Unexpected tangent format: " + attribute.type);
+                            }
+
+                            case TEXCOORD -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RG_32_FLOAT) {
+                                    var x = vertexBuffer.getFloat();
+                                    var y = 1.0f - vertexBuffer.getFloat();
+                                    uvs.add(new Vector2f(x, y));
+                                } else throw new RuntimeException("Unexpected uv format: " + attribute.type);
+                            }
+
+                            case BLEND_INDICES -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_8_UNSIGNED) {
+                                    var w = vertexBuffer.get() & 0xFF;
+                                    var x = vertexBuffer.get() & 0xFF;
+                                    var y = vertexBuffer.get() & 0xFF;
+                                    var z = vertexBuffer.get() & 0xFF;
+                                    boneIds.add(new Vector4i(x, y, z, w));
+                                } else throw new RuntimeException("Unexpected bone idx format: " + attribute.type);
+                            }
+
+                            case BLEND_WEIGHTS -> {
+                                if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_UNORM) {
+                                    var weight = getWeights(vertexBuffer);
+                                    weights.add(weight);
+                                } else throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
+                            }
+
+                            default -> throw new IllegalStateException("Unexpected value: " + attribute);
+                        }
+                    }
+                }
+
+                // Sub meshes
+                for (int j = 0; j < info.materialsLength(); j++) {
+                    var subMesh = info.materials(j);
+                    var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
+                    if (!Objects.requireNonNull(info.meshName()).contains("lod"))
+                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, weights, boneIds, binormals, uvs));
+                }
             }
         }
     }
 
-    private static Vector3f readRGBA16Float(ByteBuffer buf) {
-        var x = Model.halfFloatToFloat(buf.getShort()); // Ignored. Maybe padding?
-        var y = Model.halfFloatToFloat(buf.getShort());
-        var z = Model.halfFloatToFloat(buf.getShort());
-        var w = Model.halfFloatToFloat(buf.getShort());
+    private Vector4f getWeights(ByteBuffer vertexBuffer) {
+        var w = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+        var x = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+        var y = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+        var z = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
+        return new Vector4f(x, y, z, w).div(x + y + z + w);
+    }
+
+    private Vector3f readRGBA16Float3(ByteBuffer buf) {
+        var x = readHalfFloat(buf.getShort()); // Ignored. Maybe padding?
+        var y = readHalfFloat(buf.getShort());
+        var z = readHalfFloat(buf.getShort());
+        var w = readHalfFloat(buf.getShort());
         return new Vector3f(x, y, z);
     }
 
-    @Override
-    public void writeModel(Path path) {
-        try {
-            var sceneModel = new DefaultSceneModel();
-            var sceneMaterials = new HashMap<Material, MaterialModelV2>();
-
-            for (var value : materials.values()) {
-                sceneMaterials.put(value, MaterialBuilder.create()
-                        .setBaseColorTexture("file:///" + value.getTexture("BaseColorMap").filePath().replace("\\", "/").replace(" ", "%20"), "image/png", 0)
-                        .setDoubleSided(true)
-                        .build());
-            }
-
-            for (var mesh : meshes) {
-                var meshModel = new DefaultMeshModel();
-                var meshPrimitiveModel = mesh.create().build();
-
-                meshPrimitiveModel.setMaterialModel(sceneMaterials.get(mesh.material));
-                meshModel.addMeshPrimitiveModel(meshPrimitiveModel);
-
-                // Create a node with the mesh
-                var nodeModel = new DefaultNodeModel();
-                nodeModel.setName(mesh.name());
-                nodeModel.addMeshModel(meshModel);
-                sceneModel.addNode(nodeModel);
-            }
-
-            // Pass the scene to the model builder. It will take care
-            // of the other model elements that are contained in the scene.
-            // (I.e. the mesh primitive and its accessors, and the material
-            // and its textures)
-            var gltfModelBuilder = GltfModelBuilder.create();
-            gltfModelBuilder.addSceneModel(sceneModel);
-            var gltfModel = gltfModelBuilder.build();
-
-            var gltfWriter = new GltfModelWriterV2();
-            gltfWriter.writeBinary(gltfModel, Files.newOutputStream(path));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to create %s".formatted(path), e);
-        }
-    }
-
-    public record Material(
-            String name,
-            List<Texture> textures,
-            Map<String, Vector4i> colors
-    ) {
-        public Texture getTexture(String type) {
-            for (var texture : textures) if (texture.type.equals(type)) return texture;
-            throw new RuntimeException("Texture of type " + type + " doesn't exist");
-        }
-    }
-
-    public record Texture(
-            String type,
-            String filePath
-    ) {
-        public BufferedImage getBufferedImage() {
-            try {
-                return ImageIO.read(new File(filePath));
-            } catch (IOException e) {
-                return null;
-            }
-        }
-    }
-
-    private record Mesh(
-            String name,
-            Material material,
-            List<Integer> indices,
-            List<Vector3f> positions,
-            List<Vector3f> normals,
-            List<Vector3f> tangents,
-            List<Vector3f> biNormals,
-            List<Vector2f> uvs
-    ) {
-        public MeshPrimitiveBuilder create() {
-            return MeshPrimitiveBuilder.create()
-                    .setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
-                    .addNormals3D(toBuffer3(normals))
-                    .addTexCoords02D(toBuffer2(uvs))
-                    .addPositions3D(toBuffer3(positions))
-                    .setTriangles();
-        }
-    }
-
-    private static FloatBuffer toBuffer3(List<Vector3f> list) {
-        var buffer = FloatBuffer.wrap(new float[list.size() * 3]);
-        for (var element : list)
-            buffer
-                    .put(element.x)
-                    .put(element.y)
-                    .put(element.z);
-
-        return buffer.rewind();
-    }
-
-    private static FloatBuffer toBuffer2(List<Vector2f> list) {
-        var buffer = FloatBuffer.wrap(new float[list.size() * 2]);
-        for (var element : list)
-            buffer
-                    .put(element.x)
-                    .put(element.y);
-
-        return buffer.rewind();
+    private Vector4f readRGBA16Float4(ByteBuffer buf) {
+        var x = readHalfFloat(buf.getShort()); // Ignored. Maybe padding?
+        var y = readHalfFloat(buf.getShort());
+        var z = readHalfFloat(buf.getShort());
+        var w = readHalfFloat(buf.getShort());
+        return new Vector4f(x, y, z, w);
     }
 
     private record Attribute(
