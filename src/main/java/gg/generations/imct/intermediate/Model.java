@@ -159,10 +159,6 @@ public abstract class Model {
         return buffer.rewind();
     }
 
-    protected Vector3f toVec3(Vec3 vec) {
-        return new Vector3f(vec.x(), vec.y(), vec.z());
-    }
-
     public record Material(
             String name,
             List<Texture> textures

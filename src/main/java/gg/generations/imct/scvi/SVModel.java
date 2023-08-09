@@ -268,6 +268,10 @@ public class SVModel extends Model {
         }
     }
 
+    protected Vector3f toVec3(Vec3 vec) {
+        return new Vector3f(vec.x(), vec.y(), vec.z());
+    }
+
     private record Attribute(
             AttributeType type,
             AttributeSize size

@@ -1,5 +1,6 @@
 package gg.generations.imct;
 
+import gg.generations.imct.la.LAModel;
 import gg.generations.imct.scvi.SVModel;
 
 import java.io.IOException;
@@ -26,9 +27,7 @@ public class IMCT {
 //            }
 //        });
 
-        var folder = Files.exists(Paths.get("C:\\users\\hydos")) ? Paths.get("F:/PokemonModels/SV/pokemon/data/pm0006/pm0006_00_00") : Paths.get("pm0053_00_00");
-        var model = new SVModel(folder);
-        var outModel = Paths.get("out.glb");
-        model.writeModel(outModel);
+        new SVModel(Paths.get("F:\\PokemonModels\\SV\\pokemon\\data\\pm0006\\pm0006_00_00")).writeModel(Paths.get("ScarletViolet.glb"));
+        new LAModel(Paths.get("F:\\PokemonModels\\LA\\pm0486_00_00")).writeModel(Paths.get("LegendsArceus.glb"));
     }
 }
