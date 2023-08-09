@@ -1,9 +1,6 @@
 package gg.generations.imct.intermediate;
 
 import de.javagl.jgltf.model.GltfConstants;
-import de.javagl.jgltf.model.MathUtils;
-import de.javagl.jgltf.model.NodeModel;
-import de.javagl.jgltf.model.Utils;
 import de.javagl.jgltf.model.creation.AccessorModels;
 import de.javagl.jgltf.model.creation.GltfModelBuilder;
 import de.javagl.jgltf.model.creation.MaterialBuilder;
@@ -15,11 +12,8 @@ import de.javagl.jgltf.model.impl.DefaultSkinModel;
 import de.javagl.jgltf.model.io.Buffers;
 import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
 import de.javagl.jgltf.model.v2.MaterialModelV2;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.Material;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.SVModel;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.Vec3;
 import org.joml.*;
-import org.joml.Math;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -28,8 +22,10 @@ import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.stream.DoubleStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public abstract class Model {
 
@@ -37,8 +33,8 @@ public abstract class Model {
 
     protected List<DefaultNodeModel> joints;
 
-    protected final List<SVModel.Mesh> meshes = new ArrayList<>();
-    protected final Map<String, SVModel.Material> materials = new HashMap<>();
+    protected final List<Mesh> meshes = new ArrayList<>();
+    protected final Map<String, Material> materials = new HashMap<>();
 
     public void writeModel(Path path) {
         try {
@@ -116,35 +112,6 @@ public abstract class Model {
         } catch (IOException e) {
             throw new RuntimeException("Failed to read " + path.getFileName(), e);
         }
-    }
-
-    protected float readHalfFloat(short bits) {
-        int s = (bits >> 15) & 0x0001;
-        int e = (bits >> 10) & 0x001F;
-        int m = bits & 0x03FF;
-
-        if (e == 0) {
-            if (m == 0) {
-                // +/- 0
-                return Float.intBitsToFloat(s << 31);
-            } else {
-                // Denormalized number
-                e = 1;
-            }
-        } else if (e == 31) {
-            if (m == 0) {
-                // +/- Infinity
-                return Float.intBitsToFloat((s << 31) | 0x7F800000);
-            } else {
-                // NaN
-                return Float.intBitsToFloat((s << 31) | 0x7F800000 | (m << 13));
-            }
-        }
-
-        var exponent = e - 15;
-        var mantissa = m << 13;
-        var floatValueBits = (s << 31) | ((exponent + 127) << 23) | mantissa;
-        return Float.intBitsToFloat(floatValueBits);
     }
 
     protected static ShortBuffer toUShort4(List<Vector4i> list) {

@@ -1,6 +1,6 @@
 package gg.generations.imct;
 
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.SVModel;
+import gg.generations.imct.scvi.SVModel;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -1,9 +1,10 @@
-package gg.generations.imct.scvi.flatbuffers.Titan.Model;
+package gg.generations.imct.scvi;
 
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import gg.generations.imct.intermediate.Model;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.*;
+import gg.generations.imct.util.TrinityUtils;
 import org.joml.*;
-import org.joml.Math;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -216,13 +217,13 @@ public class SVModel extends Model {
 
                             case NORMAL -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
-                                    normals.add(readRGBA16Float3(vertexBuffer));
+                                    normals.add(TrinityUtils.readRGBA16Float3(vertexBuffer));
                                 } else throw new RuntimeException("Unexpected normal format: " + attribute.type);
                             }
 
                             case TANGENT -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_FLOAT) {
-                                    tangents.add(readRGBA16Float4(vertexBuffer));
+                                    tangents.add(TrinityUtils.readRGBA16Float4(vertexBuffer));
                                 } else throw new RuntimeException("Unexpected tangent format: " + attribute.type);
                             }
 
@@ -246,7 +247,7 @@ public class SVModel extends Model {
 
                             case BLEND_WEIGHTS -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_16_UNORM) {
-                                    var weight = getWeights(vertexBuffer);
+                                    var weight = TrinityUtils.readWeights(vertexBuffer);
                                     weights.add(weight);
                                 } else throw new RuntimeException("Unexpected bone weight format: " + attribute.type);
                             }
@@ -265,30 +266,6 @@ public class SVModel extends Model {
                 }
             }
         }
-    }
-
-    private Vector4f getWeights(ByteBuffer vertexBuffer) {
-        var w = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
-        var x = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
-        var y = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
-        var z = ((float) (vertexBuffer.getShort() & 0xFFFF)) / 65535;
-        return new Vector4f(x, y, z, w).div(x + y + z + w);
-    }
-
-    private Vector3f readRGBA16Float3(ByteBuffer buf) {
-        var x = readHalfFloat(buf.getShort()); // Ignored. Maybe padding?
-        var y = readHalfFloat(buf.getShort());
-        var z = readHalfFloat(buf.getShort());
-        var w = readHalfFloat(buf.getShort());
-        return new Vector3f(x, y, z);
-    }
-
-    private Vector4f readRGBA16Float4(ByteBuffer buf) {
-        var x = readHalfFloat(buf.getShort()); // Ignored. Maybe padding?
-        var y = readHalfFloat(buf.getShort());
-        var z = readHalfFloat(buf.getShort());
-        var w = readHalfFloat(buf.getShort());
-        return new Vector4f(x, y, z, w);
     }
 
     private record Attribute(
