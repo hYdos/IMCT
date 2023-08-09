@@ -12,7 +12,6 @@ import de.javagl.jgltf.model.impl.DefaultSkinModel;
 import de.javagl.jgltf.model.io.Buffers;
 import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
 import de.javagl.jgltf.model.v2.MaterialModelV2;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.Vec3;
 import org.joml.*;
 
 import java.io.IOException;
@@ -183,6 +182,7 @@ public abstract class Model {
             List<Vector3f> positions,
             List<Vector3f> normals,
             List<Vector4f> tangents,
+            List<Vector4f> colors,
             List<Vector4f> weights,
             List<Vector4i> boneIds,
             List<Vector3f> biNormals,

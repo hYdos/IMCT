@@ -178,6 +178,7 @@ public class SVModel extends Model {
                 var positions = new ArrayList<Vector3f>();
                 var normals = new ArrayList<Vector3f>();
                 var tangents = new ArrayList<Vector4f>();
+                var colors = new ArrayList<Vector4f>();
                 var weights = new ArrayList<Vector4f>();
                 var boneIds = new ArrayList<Vector4i>();
                 var binormals = new ArrayList<Vector3f>();
@@ -212,6 +213,7 @@ public class SVModel extends Model {
                                     var y = vertexBuffer.get() & 0xFF;
                                     var z = vertexBuffer.get() & 0xFF;
                                     var w = vertexBuffer.get() & 0xFF;
+                                    colors.add(new Vector4f(x, y, z, w));
                                 } else throw new RuntimeException("Unexpected color format: " + attribute.type);
                             }
 
@@ -262,7 +264,7 @@ public class SVModel extends Model {
                     var subMesh = info.materials(j);
                     var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
                     if (!Objects.requireNonNull(info.meshName()).contains("lod"))
-                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, weights, boneIds, binormals, uvs));
+                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
                 }
             }
         }
