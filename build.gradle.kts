@@ -19,4 +19,6 @@ dependencies {
     implementation("de.javagl:jgltf-model-builder:2.0.4-SNAPSHOT")
 
     implementation("com.google.flatbuffers", "flatbuffers-java", "23.3.3")
+
+    implementation("org.thshsh:struct:2.1.0")
 }
