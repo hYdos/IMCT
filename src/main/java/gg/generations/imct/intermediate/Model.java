@@ -1,9 +1,6 @@
 package gg.generations.imct.intermediate;
 
 import de.javagl.jgltf.model.GltfConstants;
-import de.javagl.jgltf.model.MathUtils;
-import de.javagl.jgltf.model.NodeModel;
-import de.javagl.jgltf.model.Utils;
 import de.javagl.jgltf.model.creation.AccessorModels;
 import de.javagl.jgltf.model.creation.GltfModelBuilder;
 import de.javagl.jgltf.model.creation.MaterialBuilder;
@@ -15,11 +12,9 @@ import de.javagl.jgltf.model.impl.DefaultSkinModel;
 import de.javagl.jgltf.model.io.Buffers;
 import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
 import de.javagl.jgltf.model.v2.MaterialModelV2;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.Material;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.SVModel;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.Vec3;
 import org.joml.*;
-import org.joml.Math;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,7 +24,6 @@ import java.nio.ShortBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.stream.DoubleStream;
 
 public abstract class Model {
 
@@ -198,8 +192,8 @@ public abstract class Model {
 
     public record Material(
             String name,
-            List<Texture> textures
-    ) {
+            List<Texture> textures,
+            Map<String, Vector4i> colors) {
 
         public Texture getTexture(String type) {
             for (var texture : textures) if (texture.type.equals(type)) return texture;

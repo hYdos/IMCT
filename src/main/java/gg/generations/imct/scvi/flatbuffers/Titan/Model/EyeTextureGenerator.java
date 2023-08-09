@@ -23,24 +23,35 @@ public class EyeTextureGenerator {
 
         var base = resizeImage(EyeTextureGenerator.loadImage(material.getTexture("BaseColorMap").filePath()), 256, 256);
 
+//        displayImage(base, "Base");
 
+//        var store = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
+//material.colors().get("BaseColorLayer1")
 
-        var store = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
+        var red = colorReplacement(channels.redPath, new Vector4i(0,0, 0, 255));
 
-        displayImage(store = colorReplacement(channels.redPath, base,  material.colors().get("BaseColorLayer1")), "BaseColorLayer1");
-        displayImage(store = colorReplacement(channels.greenPath, store,  material.colors().get("BaseColorLayer2")), "BaseColorLayer2");
-        displayImage(store = colorReplacement(channels.bluePath, store,  material.colors().get("BaseColorLayer3")), "BaseColorLayer3");
-        displayImage(store = colorReplacement(channels.alphaPath, store,  material.colors().get("BaseColorLayer4")), "BaseColorLayer4");
+        displayImage(channels.redPath, "Red");
+        displayImage(channels.greenPath, "GREEN");
+        displayImage(channels.bluePath, "BLUE");
+        displayImage(channels.alphaPath, "Alpha");
 
-        var store1 = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
-        displayImage(store1 = colorReplacement(channels.redPath, base,  material.colors().get("EmissionColorLayer1")), "EmissionColorLayer1");
-        displayImage(store1 = colorReplacement(channels.greenPath, store1,  material.colors().get("EmissionColorLayer2")), "EmissionColorLayer2");
-        displayImage(store1 = colorReplacement(channels.bluePath, store1,  material.colors().get("EmissionColorLayer3")), "EmissionColorLayer3");
-        displayImage(store1 = colorReplacement(channels.alphaPath, store1,  material.colors().get("EmissionColorLayer4")), "EmissionColorLayer4");
+        displayImage(multiply(red, base), " Blep");
 
-        var rar = addition(store, store1);
-
-        new ImagePlus("Lookie", rar).show();
+//        displayImage(channels.redPath, "alpha");
+//        displayImage(colorReplacement(channels.redPath, material.colors().get("BaseColorLayer1")), "BaseColorLayer1");
+//        displayImage(colorReplacement(channels.greenPath, material.colors().get("BaseColorLayer2")), "BaseColorLayer2");
+//        displayImage(colorReplacement(channels.bluePath, material.colors().get("BaseColorLayer3")), "BaseColorLayer3");
+//        displayImage(colorReplacement(channels.alphaPath, material.colors().get("BaseColorLayer4")), "BaseColorLayer4");
+//
+//        var store1 = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
+//        displayImage(store1 = colorReplacement(channels.redPath, base,  material.colors().get("EmissionColorLayer1")), "EmissionColorLayer1");
+//        displayImage(store1 = colorReplacement(channels.greenPath, store1,  material.colors().get("EmissionColorLayer2")), "EmissionColorLayer2");
+//        displayImage(store1 = colorReplacement(channels.bluePath, store1,  material.colors().get("EmissionColorLayer3")), "EmissionColorLayer3");
+//        displayImage(store1 = colorReplacement(channels.alphaPath, store1,  material.colors().get("EmissionColorLayer4")), "EmissionColorLayer4");
+//
+//        var rar = addition(store, store1);
+//
+//        new ImagePlus("Lookie", rar).show();
 
 //        BufferedImage base = createBase(material, "BaseColorLayer");
 //        displayImage(additionModeComposition(createBase(material, "EmissionColorLayer"), base), "Emission");
@@ -48,7 +59,7 @@ public class EyeTextureGenerator {
     }
 
     public static BufferedImage addition(BufferedImage top, BufferedImage bottom) {
-        return operation(top, bottom, (a, b, b2) -> (int) Math.sqrt(a*a + b*b));
+        return operation(top, bottom, (a, b, b2) -> Math.min(a + b, 255));
     }
 
     public static BufferedImage operation(BufferedImage top, BufferedImage bottom, Operation op) {
@@ -80,20 +91,15 @@ public class EyeTextureGenerator {
     }
 
     public static BufferedImage multiply(BufferedImage top, BufferedImage bottom) {
-        return operation(top, bottom, (topColor, bottomColor, channel) -> topColor * bottomColor);
+        return operation(top, bottom, (topColor, bottomColor, channel) -> (int) ((topColor * bottomColor) / 255f));
     }
 
-    public static BufferedImage colorReplacement(BufferedImage mask, BufferedImage target, Vector4i color) {
+    public static BufferedImage colorReplacement(BufferedImage mask, Vector4i color) {
+        var target = new BufferedImage(mask.getWidth(), mask.getHeight(), BufferedImage.TYPE_INT_ARGB);
+
         return operation(mask, target, (maskColor, targetColor, channel) -> {
-            var tint = color.get(channel.ordinal());
-
-            if(maskColor != 0) {
-                var factor = (float) maskColor / 255f;
-
-                return (int) (factor * tint);
-            }
-
-            return targetColor;
+            if(channel != Operation.Channel.ALPHA) return maskColor;
+            return color.get(channel.ordinal());
         });
     }
 
@@ -101,10 +107,10 @@ public class EyeTextureGenerator {
         public int apply(int top, int bottom, Channel channel);
 
         public enum Channel {
+            ALPHA,
             RED,
             GREEN,
-            BLUE,
-            ALPHA
+            BLUE
         }
     }
 
@@ -119,10 +125,10 @@ public class EyeTextureGenerator {
         int height = bufferedImage.getHeight();
 
         // Separate BufferedImage for red, green, blue, and alpha channels
-        BufferedImage redImage = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
-        BufferedImage greenImage = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
-        BufferedImage blueImage = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
-        BufferedImage alphaImage = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+        BufferedImage redImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage greenImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage blueImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage alphaImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
@@ -156,6 +162,11 @@ public class EyeTextureGenerator {
     }
 
     public static void displayImage(BufferedImage image, String title) {
+        try {
+            ImageIO.write(image, "PNG", new File(title + ".png"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         JFrame frame = new JFrame(title);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 

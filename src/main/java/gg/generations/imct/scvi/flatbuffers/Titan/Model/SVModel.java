@@ -8,6 +8,7 @@ import org.joml.Math;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -159,7 +160,7 @@ public class SVModel extends Model {
             ));
         }
 
-        var display = new Vector4iDisplay(materials.get("l_eye").colors);
+        var display = new Vector4iDisplay(materials.get("l_eye").colors());
         display.setVisible(true);
         display.saveDisplayAsImage("display.png");
 
@@ -372,6 +373,6 @@ public class SVModel extends Model {
     }
 
     private int linearToNonLinearColor(float color) {
-        return (int) (Math.ceil(Math.pow(color, 1/2.25530545664) * 255));
+        return (int) (Math.ceil(java.lang.Math.pow(color, 1/2.25530545664) * 255));
     }
 }
