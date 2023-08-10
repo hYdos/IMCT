@@ -37,6 +37,7 @@ public abstract class Model {
 
     public void writeModel(Path path) {
         try {
+            Files.createDirectories(path.getParent());
             var sceneModel = new DefaultSceneModel();
             var sceneMaterials = new HashMap<Material, MaterialModelV2>();
 
