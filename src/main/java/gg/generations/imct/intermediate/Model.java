@@ -164,7 +164,7 @@ public abstract class Model {
     ) {
 
         public Texture getTexture(String type) {
-            for (var texture : textures) if (texture.type.equals(type)) return texture;
+            for (var texture : textures) if (texture.type.endsWith(type)) return texture;
             throw new RuntimeException("Texture of type " + type + " doesn't exist");
         }
     }

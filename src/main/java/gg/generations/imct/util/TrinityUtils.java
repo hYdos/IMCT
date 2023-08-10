@@ -31,7 +31,7 @@ public class TrinityUtils {
         return new Vector4f(x, y, z, w);
     }
 
-    protected static float readHalfFloat(short bits) {
+    public static float readHalfFloat(short bits) {
         int s = (bits >> 15) & 0x0001;
         int e = (bits >> 10) & 0x001F;
         int m = bits & 0x03FF;

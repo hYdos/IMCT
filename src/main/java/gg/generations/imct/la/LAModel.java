@@ -72,10 +72,7 @@ public class LAModel extends Model {
 
 
         // Second bone pass. Convert into skeleton
-
         this.skeleton = new ArrayList<>();
-
-        var arr = new float[16];
 
         for(var bone : bones) {
             var node = new DefaultNodeModel();
