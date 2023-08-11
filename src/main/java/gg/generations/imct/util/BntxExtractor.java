@@ -2,6 +2,7 @@ package gg.generations.imct.util;
 
 import javax.swing.*;
 import java.awt.image.BufferedImage;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -10,6 +11,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class BntxExtractor {
     static Map<Integer, String> formats = Utils.create(new HashMap<>(), obj -> {
@@ -476,10 +479,36 @@ public class BntxExtractor {
 
     public static void saveTextures(List<TexInfo> textures) {
         for(var tex : textures) {
-            String format_;
+            Format format_ = null;
             if(formats.containsKey((int) tex.format) && tex.numFaces < 2) {
-                if((tex.format >> 8) == 0x20) {
-                    format_ = "BC7";
+                if ((tex.format >> 8) == 0xb) {
+                    format_ = new Format(28);
+                } else if (tex.format == 0x701) {
+                    format_ = new Format(85);
+                } else if (tex.format == 0x201) {
+                    format_ = new Format(61);
+                } else if (tex.format == 0x901) {
+                    format_ = new Format(49);
+                } else if ((tex.format >> 8) == 0x1a) {
+                    format_ = new Format("BC1");
+                } else if ((tex.format >> 8) == 0x1b) {
+                    format_ = new Format("BC2");
+                } else if ((tex.format >> 8) == 0x1c) {
+                    format_ = new Format("BC3");
+                } else if (tex.format == 0x1d01) {
+                    format_ = new Format("BC4U");
+                } else if (tex.format == 0x1d02) {
+                    format_ = new Format("BC4S");
+                } else if (tex.format == 0x1e01) {
+                    format_ = new Format("BC5U");
+                } else if (tex.format == 0x1e02) {
+                    format_ = new Format("BC5S");
+                } else if (tex.format == 0x1f01) {
+                    format_ = new Format("BC6H_UF16");
+                } else if (tex.format == 0x1f02) {
+                    format_ = new Format("BC6H_SF16");
+                } else if ((tex.format >> 8) == 0x20) {
+                    format_ = new Format("BC7");
                 }
 
                 var pair = blk_dims.getOrDefault((int) tex.format >> 8, new Pair<>(1,1));
@@ -488,10 +517,59 @@ public class BntxExtractor {
 
                 var size = DIV_ROUND_UP(tex.width, pair.a()) * DIV_ROUND_UP(tex.height, pair.b());
 
-                 var data = Swizzle.deswizzle(tex.width, tex.height, pair.a(), pair.b(), bpp, tex.tileMode, tex.alignment, tex.sizeRange, tex.data);
+                 var result = Swizzle.deswizzle(tex.width, tex.height, pair.a(), pair.b(), bpp, tex.tileMode, tex.alignment, tex.sizeRange, tex.data);
+
+                 if(IntStream.of(ASTC_formats).anyMatch(a -> a == (int) (tex.format >> 8))) {
+                     byte[] outBuffer = new byte[] {
+                             (byte) 0x13, (byte) 0xAB, (byte) 0xA1, (byte) 0x5C,
+                             (byte) pair.a().intValue(),
+                             (byte) pair.b().intValue(),
+                             (byte) 0x01,
+                             (byte) ((pair.a().intValue() >> 16) & 0xFF), (byte) ((pair.a().intValue() >> 8) & 0xFF), (byte) (pair.a().intValue() & 0xFF),
+                             (byte) ((pair.b().intValue() >> 16) & 0xFF), (byte) ((pair.b().intValue() >> 8) & 0xFF), (byte) (pair.b().intValue() & 0xFF),
+                             (byte) 0x01, (byte) 0x00, (byte) 0x00,
+                     };
+
+                     // Append the result byte sequence to the outBuffer
+                     byte[] finalBuffer = new byte[outBuffer.length + result.length];
+                     System.arraycopy(outBuffer, 0, finalBuffer, 0, outBuffer.length);
+                     System.arraycopy(result, 0, finalBuffer, outBuffer.length, result.length);
+
+                     // Writing the finalBuffer to a binary file
+                     try (FileOutputStream output = new FileOutputStream(tex.name + ".astc")) {
+                         output.write(finalBuffer);
+                     } catch (IOException e) {
+                         e.printStackTrace();
+                     }
+                 }
+
+
+                 Collections.reverse(tex.compSel);
+
+                 var valueToCheck = (int) tex.format;
+
+                 DDS.generHeader(1, tex.width, tex.height, format_, tex.compSel, IntStream.of(BCn_formats).anyMatch(x -> x == valueToCheck));
 
                 System.out.println();
             }
+        }
+    }
+
+    public static class Format {
+        private String string = null;
+        private Integer integer = null;
+
+        public Format(Object obj) {
+            if(obj instanceof String str) {
+                this.string = str;
+            } if(obj instanceof Integer integer) {
+                this.integer = integer;
+            }
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return Objects.equals(obj, string) || Objects.equals(obj, integer);
         }
     }
 

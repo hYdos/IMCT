@@ -1,7 +1,5 @@
 package gg.generations.imct.util;
 
-import org.im4java.utils.BaseFilter;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -18,9 +16,11 @@ public class BntxToPng {
     }
 
     public static void convert(Path exe, Path bms, Path texcon_exe, Path folder) throws IOException, InterruptedException {
+//        http://aluigi.altervista.org/quickbms.htm
         var builder = new ProcessBuilder();
         builder.inheritIO().directory(folder.toFile()).command(exe.toString(), bms.toString(), folder.toString()).start().waitFor();
 
+//        https://github.com/microsoft/DirectXTex
         var builder1 = new ProcessBuilder();
         builder1.inheritIO().directory(folder.toFile()).command(
                 texcon_exe.toString(), "-r", folder.toString() + "\\*.dds", "-ft", "png"

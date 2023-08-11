@@ -20,5 +20,5 @@ dependencies {
 
     implementation("com.google.flatbuffers", "flatbuffers-java", "23.3.3")
 
-    implementation("org.thshsh:struct:2.1.0")
+    compileOnly("jmagick:jmagick:6.6.9")
 }
