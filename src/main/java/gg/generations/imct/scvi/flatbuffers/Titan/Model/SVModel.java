@@ -164,7 +164,7 @@ public class SVModel extends Model {
         display.setVisible(true);
         display.saveDisplayAsImage("display.png");
 
-        EyeTextureGenerator.generate(materials.get("l_eye"));
+        EyeTextureGenerator.generate(materials.get("l_eye"), modelDir);
 
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {

@@ -1,53 +1,49 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model;
 
-import ij.IJ;
-import ij.ImagePlus;
-import ij.io.ImageReader;
-import ij.io.Opener;
-import ij.plugin.ChannelSplitter;
-import ij.plugin.HyperStackConverter;
-import ij.process.ColorProcessor;
-import ij.process.ImageProcessor;
 import org.joml.Vector4i;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Objects;
 
 public class EyeTextureGenerator {
-    public static BufferedImage generate(SVModel.Material material) {
-        var channels = splitImageChannels(material.getTexture("LayerMaskMap").filePath());
+    public static BufferedImage generate(SVModel.Material material, Path modelDir) {
+        var channels = splitImageChannels(modelDir.resolve(modelDir.getFileName().toString() + "_eye_lym.png").toString());
 
-        var base = resizeImage(EyeTextureGenerator.loadImage(material.getTexture("BaseColorMap").filePath()), 256, 256);
+        var base = resizeImage(EyeTextureGenerator.loadImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_alb.png").toString()), 256, 256);
 
+        var highlight = grayScaleToColor(EyeTextureGenerator.loadImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_msk.png").toString()));
+
+//        channels.display();
 //        displayImage(base, "Base");
 
-//        var store = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
 //material.colors().get("BaseColorLayer1")
 
-        var red = colorReplacement(channels.redPath, new Vector4i(0,0, 0, 255));
+        var store = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
 
-        displayImage(channels.redPath, "Red");
-        displayImage(channels.greenPath, "GREEN");
-        displayImage(channels.bluePath, "BLUE");
-        displayImage(channels.alphaPath, "Alpha");
-
-        displayImage(multiply(red, base), " Blep");
-
-//        displayImage(channels.redPath, "alpha");
-//        displayImage(colorReplacement(channels.redPath, material.colors().get("BaseColorLayer1")), "BaseColorLayer1");
-//        displayImage(colorReplacement(channels.greenPath, material.colors().get("BaseColorLayer2")), "BaseColorLayer2");
-//        displayImage(colorReplacement(channels.bluePath, material.colors().get("BaseColorLayer3")), "BaseColorLayer3");
-//        displayImage(colorReplacement(channels.alphaPath, material.colors().get("BaseColorLayer4")), "BaseColorLayer4");
+        store = layer(base, colorReplacement(channels.redPath, material.colors().get("BaseColorLayer1")), AlphaComposite.SrcOver);
+        store = layer(store, colorReplacement(channels.greenPath, material.colors().get("BaseColorLayer2")), AlphaComposite.SrcOver);
+        store = layer(store, colorReplacement(channels.bluePath, material.colors().get("BaseColorLayer3")), AlphaComposite.SrcOver);
+        displayImage(store = layer(store, colorReplacement(channels.alphaPath, material.colors().get("BaseColorLayer4")), AlphaComposite.SrcOver), "BaseColorLayer4");
 //
-//        var store1 = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
-//        displayImage(store1 = colorReplacement(channels.redPath, base,  material.colors().get("EmissionColorLayer1")), "EmissionColorLayer1");
-//        displayImage(store1 = colorReplacement(channels.greenPath, store1,  material.colors().get("EmissionColorLayer2")), "EmissionColorLayer2");
-//        displayImage(store1 = colorReplacement(channels.bluePath, store1,  material.colors().get("EmissionColorLayer3")), "EmissionColorLayer3");
-//        displayImage(store1 = colorReplacement(channels.alphaPath, store1,  material.colors().get("EmissionColorLayer4")), "EmissionColorLayer4");
+        var store1 = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
+        store1 = layer(base, colorReplacement(channels.redPath,  material.colors().get("EmissionColorLayer1")), AlphaComposite.SrcOver);
+        store1 = layer(store1, colorReplacement(channels.greenPath,  material.colors().get("EmissionColorLayer2")), AlphaComposite.SrcOver);
+        store1 = layer(store1, colorReplacement(channels.bluePath,  material.colors().get("EmissionColorLayer3")), AlphaComposite.SrcOver);
+        displayImage(store1 = layer(store1, colorReplacement(channels.alphaPath,  material.colors().get("EmissionColorLayer4")), AlphaComposite.SrcOver), "EmissionColorLayer4");
+
+        BufferedImage finishd;
+
+        displayImage(finishd = layer(store1, store, ScreenComposite.getInstance()), "Finished");
+
+        displayImage(layer(finishd, colorReplacement(highlight, material.colors().get("EmissionColorLayer5")), AlphaComposite.SrcOver), "Finished Blep");
 //
 //        var rar = addition(store, store1);
 //
@@ -55,7 +51,20 @@ public class EyeTextureGenerator {
 
 //        BufferedImage base = createBase(material, "BaseColorLayer");
 //        displayImage(additionModeComposition(createBase(material, "EmissionColorLayer"), base), "Emission");
-        return null;
+        return finishd;
+    }
+
+    private static BufferedImage layer(BufferedImage base, BufferedImage color, Composite composite) {
+        var result = new BufferedImage(base.getWidth(), base.getHeight(), BufferedImage.TYPE_INT_ARGB);
+
+        var graphics = result.createGraphics();
+        graphics.drawImage(base, 0, 0, null);
+
+        graphics.setComposite(composite);
+        graphics.drawImage(color, 0, 0, null);
+        graphics.dispose();
+
+        return result;
     }
 
     public static BufferedImage addition(BufferedImage top, BufferedImage bottom) {
@@ -97,10 +106,15 @@ public class EyeTextureGenerator {
     public static BufferedImage colorReplacement(BufferedImage mask, Vector4i color) {
         var target = new BufferedImage(mask.getWidth(), mask.getHeight(), BufferedImage.TYPE_INT_ARGB);
 
-        return operation(mask, target, (maskColor, targetColor, channel) -> {
-            if(channel != Operation.Channel.ALPHA) return maskColor;
-            return color.get(channel.ordinal());
-        });
+        var graphic = target.createGraphics();
+        graphic.setColor(new Color(color.x, color.y, color.z));
+        graphic.fillRect(0, 0, target.getWidth(), target.getHeight());
+
+        graphic.setComposite(AlphaComposite.DstIn);
+        graphic.drawImage(mask, 0, 0, null);
+        graphic.dispose();
+
+        return target;
     }
 
     public interface Operation {
@@ -115,37 +129,62 @@ public class EyeTextureGenerator {
     }
 
     public static ChannelImages splitImageChannels(String imagePath) {
-        BufferedImage bufferedImage = loadImage(imagePath);
+        return splitImageChannels(Objects.requireNonNull(loadImage(imagePath)));
+    }
 
-        if (bufferedImage == null) {
-            return null;
+    public static ChannelImages splitImageChannels(BufferedImage original) {
+        int width = original.getWidth();
+        int height = original.getHeight();
+
+        BufferedImage[] resultImages = new BufferedImage[4];
+
+        // Create a ColorModel and WritableRaster for the result images
+        ColorModel colorModel = ColorModel.getRGBdefault();
+        WritableRaster[] rasters = new WritableRaster[4];
+        for (int i = 0; i < 4; i++) {
+            rasters[i] = colorModel.createCompatibleWritableRaster(width, height);
         }
 
-        int width = bufferedImage.getWidth();
-        int height = bufferedImage.getHeight();
-
-        // Separate BufferedImage for red, green, blue, and alpha channels
-        BufferedImage redImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        BufferedImage greenImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        BufferedImage blueImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        BufferedImage alphaImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-
+        // Split and transfer alpha channels
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int pixel = bufferedImage.getRGB(x, y);
-                var alpha = 0xFF & (pixel >> 24);
-                var red = 0xFF & (pixel >> 16);
-                var green = 0xFF & (pixel >> 8);
-                var blue = 0xFF & pixel;
-
-                redImage.setRGB(x, y, red << 24 | red << 16 | red << 8 | red);
-                greenImage.setRGB(x, y, green << 24 | green << 16 | green << 8 | green);
-                blueImage.setRGB(x, y, blue << 24 | blue << 16 | blue << 8 | blue);
-                alphaImage.setRGB(x, y, alpha << 24 | alpha << 16 | alpha << 8 | alpha);
+                for (int i = 0; i < 4; i++) {
+                    int newPixel = (((original.getRGB(x, y) >> (i * 8)) & 0xFF) << 24) | (255 << 16) | (255 << 8) | 255; // White color
+                    rasters[i].setPixel(x, y, colorModel.getComponents(newPixel, null, 0));
+                }
             }
         }
 
-        return new ChannelImages(applySaturateEffect(redImage, 2.0), applySaturateEffect(greenImage, 2.0), applySaturateEffect(blueImage, 2.0), applySaturateEffect(alphaImage, 2.0));
+        // Create result images from the rasters
+        for (int i = 0; i < 4; i++) {
+            resultImages[i] = new BufferedImage(colorModel, rasters[i], false, null);
+        }
+
+        return new ChannelImages(resultImages[2], resultImages[1], resultImages[0], resultImages[3]);
+    }
+
+    public static BufferedImage grayScaleToColor(BufferedImage original) {
+        int width = original != null ? original.getWidth() : 256;
+        int height = original != null ? original.getHeight() : 256;
+
+        BufferedImage resultImages;
+
+        // Create a ColorModel and WritableRaster for the result images
+        ColorModel colorModel = ColorModel.getRGBdefault();
+        WritableRaster rasters = colorModel.createCompatibleWritableRaster(width, height);
+
+        // Split and transfer alpha channels
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                var pixel = original != null ? original.getRGB(x, y) : 0;
+
+                int newPixel = (pixel & 0xFF) << 24 | 255 << 16 | 255 << 8 | 255; // White color
+                rasters.setPixel(x, y, colorModel.getComponents(newPixel, null, 0));
+            }
+        }
+
+        // Create result images from the rasters
+        return new BufferedImage(colorModel, rasters, false, null);
     }
 
     // Method to load an image into BufferedImage
@@ -153,12 +192,17 @@ public class EyeTextureGenerator {
         try {
             return ImageIO.read(new File(imagePath));
         } catch (IOException e) {
-            e.printStackTrace();
             return null;
         }
     }
     // Record to hold the image channels
     public record ChannelImages(BufferedImage redPath, BufferedImage greenPath, BufferedImage bluePath, BufferedImage alphaPath) {
+        public void display() {
+            displayImage(redPath, "Red");
+            displayImage(greenPath, "Green");
+            displayImage(bluePath, "Blue");
+            displayImage(alphaPath, "Alpha");
+        }
     }
 
     public static void displayImage(BufferedImage image, String title) {
