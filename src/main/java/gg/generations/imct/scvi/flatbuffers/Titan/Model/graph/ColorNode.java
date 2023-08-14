@@ -6,7 +6,7 @@ import org.joml.Vector4i;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
-class ColorNode extends BaseNode {
+public class ColorNode extends BaseNode {
     private int width = 1, height = 1;
     private int red = 255, green = 255, blue = 255, alpha = 255;
 
@@ -30,11 +30,11 @@ class ColorNode extends BaseNode {
         return this;
     }
 
-    public ColorNode setColor(Vector4i color) {
-        this.red = color.x;
-        this.green = color.y;
-        this.blue = color.z;
-        this.alpha = color.w;
+    public ColorNode setColor(float red, float green, float blue, float alpha) {
+        this.red = (int) (red * 255);
+        this.green = (int) (green * 255);
+        this.blue = (int) (blue * 255);
+        this.alpha = (int) (alpha * 255);
         update();
 
         return this;

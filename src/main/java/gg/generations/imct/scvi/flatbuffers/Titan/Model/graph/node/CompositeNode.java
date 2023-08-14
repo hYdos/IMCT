@@ -36,12 +36,14 @@ public class CompositeNode extends BaseNode {
 
     public CompositeNode setTop(InputNode top) {
         this.top = top;
+        top.addChangeListener(this);
         process();
         return this;
     }
 
     public CompositeNode setBottom(InputNode bottom) {
-        this.top = bottom;
+        this.bottom = bottom;
+        bottom.addChangeListener(this);
         process();
         return this;
     }

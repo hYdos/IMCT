@@ -37,6 +37,11 @@ public class ChannelSplitterNode implements InputNode, ChangeListener {
         updateImage(input.getInputData().get());
         input.addChangeListener(this);
 
+        redChannel.onChange();
+        greenChannel.onChange();
+        redChannel.onChange();
+        alphaChannel.onChange();
+
         return this;
     }
 

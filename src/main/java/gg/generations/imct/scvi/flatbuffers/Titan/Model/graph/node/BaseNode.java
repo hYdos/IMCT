@@ -30,7 +30,7 @@ public abstract class BaseNode implements InputNode, InputData, ChangeListener {
 
     @Override
     public void onChange() {
-        listeners.forEach(ChangeListener::onChange);
+        update();
     }
 
     protected void update() {

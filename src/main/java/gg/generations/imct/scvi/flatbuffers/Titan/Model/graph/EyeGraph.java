@@ -1,33 +1,54 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph;
 
-import gg.generations.imct.intermediate.Model;
+import gg.generations.imct.api.ApiMaterial;
+import gg.generations.imct.api.Model;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.composite.Composites;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.*;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.BaseNode;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.ChangeListener;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.ChannelSplitterNode;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.CompositeNode;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.InputNode;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.TextureNode;
+import org.joml.Vector4f;
 
-import java.awt.*;
+import java.awt.AlphaComposite;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 
 public class EyeGraph {
     private final CompositeNode output;
-    private ColorNode baseColor1 = new ColorNode().setSize(256, 256);
-    private ColorNode baseColor2 = new ColorNode().setSize(256, 256);
-    private ColorNode baseColor3 = new ColorNode().setSize(256, 256);
-    private ColorNode baseColor4 = new ColorNode().setSize(256, 256);
+    private ColorNode baseColor1;
+    private ColorNode baseColor2;
+    private ColorNode baseColor3;
+    private ColorNode baseColor4;
 
-    private ColorNode emissionColor1 = new ColorNode().setSize(256, 256);
-    private ColorNode emissionColor2 = new ColorNode().setSize(256, 256);
-    private ColorNode emissionColor3 = new ColorNode().setSize(256, 256);
-    private ColorNode emissionColor4 = new ColorNode().setSize(256, 256);
-    private ColorNode emissionColor5 = new ColorNode().setSize(256, 256);
+    private ColorNode emissionColor1;
+    private ColorNode emissionColor2;
+    private ColorNode emissionColor3;
+    private ColorNode emissionColor4;
+    private ColorNode emissionColor5;
 
     private TextureNode lym = new TextureNode();
 
     private TextureNode alb = new TextureNode();
     private TextureNode mask = new TextureNode();
 
+    private ChannelSplitterNode lymSplit = new ChannelSplitterNode();
+
     public EyeGraph(int scale) {
-        var lymSplit = new ChannelSplitterNode().setInput(lym);
+        baseColor1 = new ColorNode().setSize(256, 256);
+        baseColor2 = new ColorNode().setSize(256, 256);
+        baseColor3 = new ColorNode().setSize(256, 256);
+        baseColor4 = new ColorNode().setSize(256, 256);
+        emissionColor1 = new ColorNode().setSize(256, 256);
+        emissionColor2 = new ColorNode().setSize(256, 256);
+        emissionColor3 = new ColorNode().setSize(256, 256);
+        emissionColor4 = new ColorNode().setSize(256, 256);
+        emissionColor5 = new ColorNode().setSize(256, 256);
+
+        lymSplit.setInput(lym);
+
+
         var baseLayer = new ScaleNode().setScale(scale).setInput(alb);
 
         var base = new LayersNode(
@@ -48,25 +69,30 @@ public class EyeGraph {
         output = new CompositeNode().setComposite(Composites.ADD).setBottom(base).setTop(emission);
     }
 
-    public BufferedImage update(Model.Material material, Path modelDir) {
+    public BufferedImage update(ApiMaterial material, Path modelDir) {
         alb.setImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_alb.png"));
         lym.setImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_lym.png"));
         mask.setImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_msk.png"));
 
-        baseColor1.setColor(material.colors().get("BaseColorLayer1"));
-        baseColor2.setColor(material.colors().get("BaseColorLayer2"));
-        baseColor3.setColor(material.colors().get("BaseColorLayer3"));
-        baseColor4.setColor(material.colors().get("BaseColorLayer4"));
+        lymSplit.getRedChannel().getInputData().display("Red");
+        lymSplit.getGreenChannel().getInputData().display("Green");
+        lymSplit.getBlueChannel().getInputData().display("Blue");
+        lymSplit.getAlphaChannel().getInputData().display("Alpha");
 
-        emissionColor1.setColor(material.colors().get("EmissionColorLayer1"));
-        emissionColor2.setColor(material.colors().get("EmissionColorLayer2"));
-        emissionColor3.setColor(material.colors().get("EmissionColorLayer3"));
-        emissionColor4.setColor(material.colors().get("EmissionColorLayer4"));
-        emissionColor5.setColor(material.colors().get("EmissionColorLayer5"));
+        if(material.properties().get("BaseColorLayer1") instanceof Vector4f vec) baseColor1.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("BaseColorLayer2") instanceof Vector4f vec) baseColor2.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("BaseColorLayer3") instanceof Vector4f vec) baseColor3.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("BaseColorLayer4") instanceof Vector4f vec) baseColor4.setColor(vec.x, vec.y, vec.z, vec.w);
 
-        output.display("output");
+        if(material.properties().get("EmissionColorLayer1") instanceof Vector4f vec) emissionColor1.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("EmissionColorLayer2") instanceof Vector4f vec) emissionColor2.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("EmissionColorLayer3") instanceof Vector4f vec) emissionColor3.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("EmissionColorLayer4") instanceof Vector4f vec) emissionColor4.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("EmissionColorLayer5") instanceof Vector4f vec) emissionColor5.setColor(vec.x, vec.y, vec.z, vec.w);
 
-        return null;
+//        output.display("output");
+
+        return output.get();
     }
 
     public static class LayersNode extends BaseNode {
@@ -74,6 +100,10 @@ public class EyeGraph {
 
         public LayersNode(InputNode... layers) {
             this.layers = layers;
+            for (int i = 0; i < layers.length; i++) {
+                var layer = layers[i];
+                layer.addChangeListener(this);
+            }
         }
 
         @Override
@@ -108,7 +138,7 @@ public class EyeGraph {
 
         public GrayScaleNode setInput(InputNode input) {
             this.input = input;
-            if(input instanceof ChangeListener listener) input.addChangeListener(listener);
+            input.addChangeListener(this);
             update();
             return this;
         }

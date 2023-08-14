@@ -25,4 +25,8 @@ public abstract class Model {
             throw new RuntimeException("Failed to read " + path.getFileName(), e);
         }
     }
+
+    protected void processEyes(Path modelDir) {
+
+    }
 }

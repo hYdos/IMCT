@@ -7,6 +7,7 @@ import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.la.flatbuffers.Hayabusa.Model.*;
 import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.TRMBF;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
 import gg.generations.imct.util.TrinityUtils;
 import org.joml.*;
 
@@ -274,6 +275,8 @@ public class LAModel extends Model {
                 }
             }
         }
+
+        processEyes(modelDir);
     }
 
     protected Vector3f toVec3(Vec3 vec) {
@@ -344,5 +347,14 @@ public class LAModel extends Model {
         public static IndexLayout get(int i) {
             return values()[i];
         }
+    }
+
+    @Override
+    protected void processEyes(Path modelDir) {
+        materials.forEach((key, value) -> {
+            if(value.properties().get("shader").equals("Eye")) {
+                EyeTextureGenerator.displayImage(EyeTextureGenerator.generate(value, modelDir), key);
+            }
+        });
     }
 }

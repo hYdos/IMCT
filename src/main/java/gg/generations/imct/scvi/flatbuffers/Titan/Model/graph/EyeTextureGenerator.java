@@ -1,7 +1,6 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph;
 
-import gg.generations.imct.intermediate.Model;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.composite.ScreenComposite;
+import gg.generations.imct.api.ApiMaterial;
 import org.joml.Vector4i;
 
 import javax.imageio.ImageIO;
@@ -17,7 +16,7 @@ import java.util.Objects;
 
 public class EyeTextureGenerator {
     private static EyeGraph ARCEUS = new EyeGraph(128);
-    public static BufferedImage generate(Model.Material material, Path modelDir) {
+    public static BufferedImage generate(ApiMaterial material, Path modelDir) {
         return ARCEUS.update(material, modelDir);
 //        var channels = splitImageChannels(modelDir.resolve(modelDir.getFileName().toString() + "_eye_lym.png").toString());
 //
@@ -213,9 +212,10 @@ public class EyeTextureGenerator {
     public static void displayImage(BufferedImage image, String title) {
         try {
             ImageIO.write(image, "PNG", new File(title + ".png"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        } catch (IOException | IllegalArgumentException e) {
+            System.out.println("Failed to display: " + title);
         }
+
         JFrame frame = new JFrame(title);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
