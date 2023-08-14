@@ -6,4 +6,4 @@ It helps convert models from formats we cant use as easily into ones we can work
 <br>
 
 #### Ignore this thanks
-`flatc -j --java-package-prefix gg.generations.imct.scvi.flatbuffers D:\NewProjects\Pokemon\pkZukan\PokeDocs\SV\Flatbuffers\model\trbsm.fbs`
+`flatc -j --java-package-prefix gg.generations.imct.read.scvi.flatbuffers D:\NewProjects\Pokemon\pkZukan\PokeDocs\SV\Flatbuffers\model\trbsm.fbs`

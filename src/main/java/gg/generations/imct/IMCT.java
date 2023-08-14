@@ -1,35 +1,26 @@
 package gg.generations.imct;
 
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.SVModel;
+import gg.generations.imct.read.ctr.UsUmModel;
+import gg.generations.imct.read.la.LAModel;
+import gg.generations.imct.read.letsgo.LGModel;
+import gg.generations.imct.read.scvi.SVModel;
+import gg.generations.imct.read.swsh.SWSHModel;
+import gg.generations.imct.write.GlbWriter;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 public class IMCT {
 
-    public static void main(String[] args) throws IOException {
-//        Files.list(Paths.get("F:/PokemonModels/SV/pokemon/data")).filter(Files::isDirectory).forEach(path -> {
-//            try {
-//                Files.list(path).forEach(modelType -> {
-//                    System.out.println("Processing " + modelType);
-//                    try {
-//                        var model = new SVModel(modelType);
-//                        model.writeModel(Paths.get(modelType.getFileName() + ".glb"));
-//                    } catch (Throwable t) {
-//                        System.err.println(modelType + " Failed :(");
-//                    }
-//
-//                });
-//            } catch (IOException e) {
-//                throw new RuntimeException(e);
-//            }
-//        });
-
-        var folder = Path.of("C:\\Users\\water\\Downloads\\pm0006_00_00");
-        var model = new SVModel(folder);
-        var outModel = Paths.get("out.glb");
-        model.writeModel(outModel);
+    public static void main(String[] args) {
+        GlbWriter.write(new SVModel(Paths.get("F:\\PokemonModels\\SV\\pokemon\\data\\pm0006\\pm0006_00_00")), Paths.get("output/ScarletViolet.glb"));
+        GlbWriter.write(new LAModel(Paths.get("F:\\PokemonModels\\LA\\pm0486_00_00")), Paths.get("output/LegendsArceus.glb"));
+        GlbWriter.write(new SWSHModel(Paths.get("F:\\PokemonModels\\SWSH\\pm0006_81_00")), Paths.get("output/SwordShield.glb"));
+        GlbWriter.write(new LGModel(Paths.get("F:\\PokemonModels\\LGPE\\pm0008_00")), Paths.get("output/LetsGoPikachuEevee.glb"));
+        GlbWriter.write(new UsUmModel(List.of(
+                Paths.get("F:\\PokemonModels\\USUM\\1 (Model)\\1162 - Poipole.bin"),
+                Paths.get("F:\\PokemonModels\\USUM\\2 (Tex)\\1162 - Poipole.bin")
+        )), Paths.get("output/UltraSunUltraMoon.glb"));
     }
 }
