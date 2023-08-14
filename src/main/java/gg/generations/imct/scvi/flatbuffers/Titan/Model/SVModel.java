@@ -2,6 +2,7 @@ package gg.generations.imct.scvi.flatbuffers.Titan.Model;
 
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import gg.generations.imct.intermediate.Model;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
 import org.joml.*;
 import org.joml.Math;
 

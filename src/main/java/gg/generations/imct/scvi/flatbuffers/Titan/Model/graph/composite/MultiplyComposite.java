@@ -1,4 +1,4 @@
-package gg.generations.imct.scvi.flatbuffers.Titan.Model;
+package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.composite;
 
 import java.awt.*;
 import java.awt.image.ColorModel;

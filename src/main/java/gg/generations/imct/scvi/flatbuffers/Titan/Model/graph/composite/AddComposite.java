@@ -1,15 +1,17 @@
-package gg.generations.imct.scvi.flatbuffers.Titan.Model;
+package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.composite;
 
 import java.awt.*;
-import java.awt.image.*;
+import java.awt.image.ColorModel;
+import java.awt.image.Raster;
+import java.awt.image.WritableRaster;
 
-public class ScreenComposite implements Composite {
+public class AddComposite implements Composite {
     @Override
     public CompositeContext createContext(ColorModel srcColorModel, ColorModel dstColorModel, RenderingHints hints) {
-        return new ScreenCompositeContext();
+        return new AddCompositeContext();
     }
 
-    private static class ScreenCompositeContext implements CompositeContext {
+    private static class AddCompositeContext implements CompositeContext {
         @Override
         public void compose(Raster src, Raster dstIn, WritableRaster dstOut) {
             int width = Math.min(src.getWidth(), dstIn.getWidth());
@@ -37,10 +39,10 @@ public class ScreenComposite implements Composite {
                 int dstGreen = (dstColor >> 8) & 0xFF;
                 int dstBlue = dstColor & 0xFF;
 
-                int resultAlpha = Math.min(255, srcAlpha + dstAlpha - ((srcAlpha * dstAlpha) >> 8));
-                int resultRed = Math.min(255, srcRed + dstRed - ((srcRed * dstRed) >> 8));
-                int resultGreen = Math.min(255, srcGreen + dstGreen - ((srcGreen * dstGreen) >> 8));
-                int resultBlue = Math.min(255, srcBlue + dstBlue - ((srcBlue * dstBlue) >> 8));
+                int resultAlpha = Math.min(srcAlpha + dstAlpha, 255);
+                int resultRed = Math.min(srcRed + dstRed, 255);
+                int resultGreen = Math.min(srcGreen + dstGreen, 255);
+                int resultBlue = Math.min(srcBlue + dstBlue, 255);
 
                 resultPixels[i] = (resultAlpha << 24) | (resultRed << 16) | (resultGreen << 8) | resultBlue;
             }
@@ -54,6 +56,6 @@ public class ScreenComposite implements Composite {
     }
 
     public static Composite getInstance() {
-        return new ScreenComposite();
+        return new AddComposite();
     }
 }

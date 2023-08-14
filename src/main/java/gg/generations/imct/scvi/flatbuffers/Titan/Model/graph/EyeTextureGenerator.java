@@ -1,5 +1,7 @@
-package gg.generations.imct.scvi.flatbuffers.Titan.Model;
+package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph;
 
+import gg.generations.imct.intermediate.Model;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.composite.ScreenComposite;
 import org.joml.Vector4i;
 
 import javax.imageio.ImageIO;
@@ -14,44 +16,47 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 public class EyeTextureGenerator {
-    public static BufferedImage generate(SVModel.Material material, Path modelDir) {
-        var channels = splitImageChannels(modelDir.resolve(modelDir.getFileName().toString() + "_eye_lym.png").toString());
-
-        var base = resizeImage(EyeTextureGenerator.loadImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_alb.png").toString()), 256, 256);
-
-        var highlight = grayScaleToColor(EyeTextureGenerator.loadImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_msk.png").toString()));
-
-//        channels.display();
-//        displayImage(base, "Base");
-
-//material.colors().get("BaseColorLayer1")
-
-        var store = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
-
-        store = layer(base, colorReplacement(channels.redPath, material.colors().get("BaseColorLayer1")), AlphaComposite.SrcOver);
-        store = layer(store, colorReplacement(channels.greenPath, material.colors().get("BaseColorLayer2")), AlphaComposite.SrcOver);
-        store = layer(store, colorReplacement(channels.bluePath, material.colors().get("BaseColorLayer3")), AlphaComposite.SrcOver);
-        displayImage(store = layer(store, colorReplacement(channels.alphaPath, material.colors().get("BaseColorLayer4")), AlphaComposite.SrcOver), "BaseColorLayer4");
+    private static EyeGraph ARCEUS = new EyeGraph(128);
+    public static BufferedImage generate(Model.Material material, Path modelDir) {
+        return ARCEUS.update(material, modelDir);
+//        var channels = splitImageChannels(modelDir.resolve(modelDir.getFileName().toString() + "_eye_lym.png").toString());
 //
-        var store1 = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
-        store1 = layer(base, colorReplacement(channels.redPath,  material.colors().get("EmissionColorLayer1")), AlphaComposite.SrcOver);
-        store1 = layer(store1, colorReplacement(channels.greenPath,  material.colors().get("EmissionColorLayer2")), AlphaComposite.SrcOver);
-        store1 = layer(store1, colorReplacement(channels.bluePath,  material.colors().get("EmissionColorLayer3")), AlphaComposite.SrcOver);
-        displayImage(store1 = layer(store1, colorReplacement(channels.alphaPath,  material.colors().get("EmissionColorLayer4")), AlphaComposite.SrcOver), "EmissionColorLayer4");
-
-        BufferedImage finishd;
-
-        displayImage(finishd = layer(store1, store, ScreenComposite.getInstance()), "Finished");
-
-        displayImage(layer(finishd, colorReplacement(highlight, material.colors().get("EmissionColorLayer5")), AlphaComposite.SrcOver), "Finished Blep");
+//        var base = resizeImage(EyeTextureGenerator.loadImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_alb.png").toString()), 256, 256);
 //
-//        var rar = addition(store, store1);
+//        var highlight = grayScaleToColor(EyeTextureGenerator.loadImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_msk.png").toString()));
 //
-//        new ImagePlus("Lookie", rar).show();
-
-//        BufferedImage base = createBase(material, "BaseColorLayer");
-//        displayImage(additionModeComposition(createBase(material, "EmissionColorLayer"), base), "Emission");
-        return finishd;
+////        channels.display();
+////        displayImage(base, "Base");
+//
+////material.colors().get("BaseColorLayer1")
+//
+//        var store = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
+//
+//        store = layer(base, colorReplacement(channels.redPath, material.colors().get("BaseColorLayer1")), AlphaComposite.SrcOver);
+//        store = layer(store, colorReplacement(channels.greenPath, material.colors().get("BaseColorLayer2")), AlphaComposite.SrcOver);
+//        store = layer(store, colorReplacement(channels.bluePath, material.colors().get("BaseColorLayer3")), AlphaComposite.SrcOver);
+//        displayImage(store = layer(store, colorReplacement(channels.alphaPath, material.colors().get("BaseColorLayer4")), AlphaComposite.SrcOver),
+//                "BaseColorLayer4");
+////
+//        var store1 = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
+//        store1 = layer(base, colorReplacement(channels.redPath,  material.colors().get("EmissionColorLayer1")), AlphaComposite.SrcOver);
+//        store1 = layer(store1, colorReplacement(channels.greenPath,  material.colors().get("EmissionColorLayer2")), AlphaComposite.SrcOver);
+//        store1 = layer(store1, colorReplacement(channels.bluePath,  material.colors().get("EmissionColorLayer3")), AlphaComposite.SrcOver);
+//        displayImage(store1 = layer(store1, colorReplacement(channels.alphaPath,  material.colors().get("EmissionColorLayer4")), AlphaComposite.SrcOver), "EmissionColorLayer4");
+//
+//        BufferedImage finishd;
+//
+//        displayImage(finishd = layer(store1, store, ScreenComposite.getInstance()), "Finished");
+//
+//        displayImage(layer(finishd, colorReplacement(highlight, material.colors().get("EmissionColorLayer5")), AlphaComposite.SrcOver), "Finished Blep");
+////
+////        var rar = addition(store, store1);
+////
+////        new ImagePlus("Lookie", rar).show();
+//
+////        BufferedImage base = createBase(material, "BaseColorLayer");
+////        displayImage(additionModeComposition(createBase(material, "EmissionColorLayer"), base), "Emission");
+//        return finishd;
     }
 
     private static BufferedImage layer(BufferedImage base, BufferedImage color, Composite composite) {
@@ -227,9 +232,9 @@ public class EyeTextureGenerator {
         BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, originalImage.getType());
 
         Graphics2D g2d = resizedImage.createGraphics();
-        g2d.setColor(Color.WHITE);
-        g2d.fillRect(0, 0, 256, 256);
-//        g2d.drawImage(originalImage.getSubimage(0, 0, 1,1).getScaledInstance(newWidth, newHeight, Image.SCALE_DEFAULT), 0, 0, null);
+//        g2d.setColor(Color.WHITE);
+//        g2d.fillRect(0, 0, 256, 256);
+        g2d.drawImage(originalImage.getSubimage(0, 0, 1,1).getScaledInstance(newWidth, newHeight, Image.SCALE_DEFAULT), 0, 0, null);
         g2d.dispose();
 
 
