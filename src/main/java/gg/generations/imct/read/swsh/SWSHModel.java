@@ -1,6 +1,9 @@
 package gg.generations.imct.read.swsh;
 
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
+import gg.generations.imct.api.ApiMaterial;
+import gg.generations.imct.api.ApiTexture;
+import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.TextureMap;
 import gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Vector3;
@@ -89,25 +92,44 @@ public class SWSHModel extends Model {
         }
 
         for (int i = 0; i < gfbmdl.materialsLength(); i++) {
-            var rawMaterial = gfbmdl.materials(i);
-            var textures = new ArrayList<Texture>();
-            var materialName = rawMaterial.name();
-            var shader = Objects.requireNonNull(rawMaterial.shaderGroup(), "Null shader name");
+            var material = gfbmdl.materials(i);
+            var properties = new HashMap<String, Object>();
+            var textures = new ArrayList<ApiTexture>();
+            var materialName = material.name();
+            var shader = Objects.requireNonNull(material.shaderGroup(), "Null shader name");
+            properties.put("shader", shader);
 
-            if (!shader.equals("Standard")) {
-                System.err.println("Unknown shader " + shader);
+            for (int j = 0; j < material.common().valuesLength(); j++) {
+                var property = material.common().values(j);
+                properties.put(property.name(), property.value());
             }
 
-            for (int j = 0; j < rawMaterial.textureMapsLength(); j++) {
-                var rawTexture = rawMaterial.textureMaps(j);
+            for (int j = 0; j < material.valuesLength(); j++) {
+                var property = material.values(j);
+                properties.put(property.name(), property.value());
+            }
+
+            for (int j = 0; j < material.common().colorsLength(); j++) {
+                var property = material.common().colors(j);
+                properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
+            }
+
+            for (int j = 0; j < material.colorsLength(); j++) {
+                var property = material.colors(j);
+                properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
+            }
+
+            for (int j = 0; j < material.textureMapsLength(); j++) {
+                var rawTexture = material.textureMaps(j);
                 var texName = gfbmdl.textureNames(rawTexture.index());
-                textures.add(new Texture(processTextureName(rawTexture), modelDir.resolve(texName + ".png").toAbsolutePath().toString()));
+                textures.add(new ApiTexture(processTextureName(rawTexture), modelDir.resolve(texName + ".png").toAbsolutePath().toString()));
             }
 
             materialIds.put(i, materialName);
-            materials.put(materialName, new Material(
+            materials.put(materialName, new ApiMaterial(
                     materialName,
-                    textures
+                    textures,
+                    properties
             ));
         }
 

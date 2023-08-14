@@ -11,6 +11,7 @@ import de.javagl.jgltf.model.impl.DefaultSkinModel;
 import de.javagl.jgltf.model.io.Buffers;
 import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
 import de.javagl.jgltf.model.v2.MaterialModelV2;
+import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.api.Model;
 import org.joml.Matrix4f;
 
@@ -26,7 +27,7 @@ public class GlbWriter {
         try {
             Files.createDirectories(path.getParent());
             var sceneModel = new DefaultSceneModel();
-            var sceneMaterials = new HashMap<Model.Material, MaterialModelV2>();
+            var sceneMaterials = new HashMap<ApiMaterial, MaterialModelV2>();
 
             for (var value : model.materials.values()) {
                 var material = MaterialBuilder.create()

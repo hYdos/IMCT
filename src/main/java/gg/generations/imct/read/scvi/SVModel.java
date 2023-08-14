@@ -1,6 +1,9 @@
 package gg.generations.imct.read.scvi;
 
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
+import gg.generations.imct.api.ApiMaterial;
+import gg.generations.imct.api.ApiTexture;
+import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.*;
 import gg.generations.imct.util.TrinityUtils;
@@ -8,6 +11,7 @@ import org.joml.*;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -67,14 +71,10 @@ public class SVModel extends Model {
             }
         }
 
-        joints = new ArrayList<>(bones.stream().mapToInt(a -> a.rigIdx).max().getAsInt());
-
+        this.joints = new ArrayList<>(bones.stream().mapToInt(a -> a.rigIdx).max().getAsInt());
 
         // Second bone pass. Convert into skeleton
-
         this.skeleton = new ArrayList<>();
-
-        var arr = new float[16];
 
         for(var bone : bones) {
             var node = new DefaultNodeModel();
@@ -115,39 +115,44 @@ public class SVModel extends Model {
         //var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
 
         // Process material data
-        var material = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
-        for (int i = 0; i < material.materialsLength(); i++) {
-            var rawMaterial = material.materials(i);
-            var textures = new ArrayList<Texture>();
-            var materialName = rawMaterial.name();
-            var shader = Objects.requireNonNull(rawMaterial.shaders(0).shaderName(), "Null shader name");
+        var materials = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
+        for (int i = 0; i < materials.materialsLength(); i++) {
+            var properties = new HashMap<String, Object>();
+            var material = materials.materials(i);
+            var textures = new ArrayList<ApiTexture>();
+            var materialName = material.name();
+            var shader = Objects.requireNonNull(material.shaders(0).shaderName(), "Null shader name");
+            properties.put("shader", shader);
 
-            if (!shader.equals("SSS")) {
-                if (shader.equals("EyeClearCoat")) {
-                    System.out.println("Material Properties");
-                    for (int j = 0; j < rawMaterial.float4ParameterLength(); j++) {
-                        var colorParam = rawMaterial.float4Parameter(j);
-                        System.out.println("Name: " + colorParam.colorName());
-                        System.out.println("R: " + colorParam.colorValue().r() * 255);
-                        System.out.println("G: " + colorParam.colorValue().g() * 255);
-                        System.out.println("B: " + colorParam.colorValue().b() * 255);
-                        System.out.println("A: " + colorParam.colorValue().a() * 255);
-                    }
-
-                    System.out.println();
-                } else {
-                    System.err.println("Unknown shader " + shader);
-                }
+            for (int j = 0; j < material.intParameterLength(); j++) {
+                var property = material.intParameter(j);
+                properties.put(property.intName(), property.intValue());
             }
 
-            for (int j = 0; j < rawMaterial.texturesLength(); j++) {
-                var rawTexture = rawMaterial.textures(j);
-                textures.add(new Texture(rawTexture.textureName(), modelDir.resolve(rawTexture.textureFile().replace(".bntx", ".png")).toAbsolutePath().toString()));
+            for (int j = 0; j < material.floatParameterLength(); j++) {
+                var property = material.floatParameter(j);
+                properties.put(property.floatName(), property.floatValue());
             }
 
-            materials.put(materialName, new Material(
+            for (int j = 0; j < material.float4ParameterLength(); j++) {
+                var property = material.float4Parameter(j);
+                properties.put(property.colorName(), new Vector4f(property.colorValue().r(), property.colorValue().g(), property.colorValue().b(), property.colorValue().a()));
+            }
+
+            for (int j = 0; j < material.float4LightParameterLength(); j++) {
+                var property = material.float4LightParameter(j);
+                properties.put(property.colorName(), new Vector4f(property.colorValue().r(), property.colorValue().g(), property.colorValue().b(), property.colorValue().a()));
+            }
+
+            for (int j = 0; j < material.texturesLength(); j++) {
+                var rawTexture = material.textures(j);
+                textures.add(new ApiTexture(rawTexture.textureName(), modelDir.resolve(rawTexture.textureFile().replace(".bntx", ".png")).toAbsolutePath().toString()));
+            }
+
+            this.materials.put(materialName, new ApiMaterial(
                     materialName,
-                    textures
+                    textures,
+                    properties
             ));
         }
 
@@ -263,7 +268,7 @@ public class SVModel extends Model {
                     var subMesh = info.materials(j);
                     var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
                     if (!Objects.requireNonNull(info.meshName()).contains("lod"))
-                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
+                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), this.materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
                 }
             }
         }

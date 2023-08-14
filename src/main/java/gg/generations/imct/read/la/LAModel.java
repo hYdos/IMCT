@@ -1,6 +1,9 @@
 package gg.generations.imct.read.la;
 
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
+import gg.generations.imct.api.ApiMaterial;
+import gg.generations.imct.api.ApiTexture;
+import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.la.flatbuffers.Hayabusa.Model.*;
 import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.TRMBF;
@@ -9,6 +12,7 @@ import org.joml.*;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -113,39 +117,44 @@ public class LAModel extends Model {
         //var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
 
         // Process material data
-        var material = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
-        for (int i = 0; i < material.materialPassesLength(); i++) {
-            var rawMaterial = material.materialPasses(i);
-            var textures = new ArrayList<Texture>();
-            var materialName = rawMaterial.name();
-            var shader = Objects.requireNonNull(rawMaterial.shaders(0).shaderName(), "Null shader name");
+        var materials = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
+        for (int i = 0; i < materials.materialPassesLength(); i++) {
+            var properties = new HashMap<String, Object>();
+            var material = materials.materialPasses(i);
+            var textures = new ArrayList<ApiTexture>();
+            var materialName = material.name();
+            var shader = Objects.requireNonNull(material.shaders(0).shaderName(), "Null shader name");
+            properties.put("shader", shader);
 
-            if (!shader.equals("Standard")) {
-                if (shader.equals("EyeClearCoat")) {
-                    System.out.println("Material Properties");
-                    for (int j = 0; j < rawMaterial.float4ParametersLength(); j++) {
-                        var colorParam = rawMaterial.float4Parameters(j);
-                        System.out.println("Name: " + colorParam.propertyBinding());
-                        System.out.println("R: " + colorParam.colorValue().r() * 255);
-                        System.out.println("G: " + colorParam.colorValue().g() * 255);
-                        System.out.println("B: " + colorParam.colorValue().b() * 255);
-                        System.out.println("A: " + colorParam.colorValue().a() * 255);
-                    }
-
-                    System.out.println();
-                } else {
-                    System.err.println("Unknown shader " + shader);
-                }
+            for (int j = 0; j < material.intParametersLength(); j++) {
+                var property = material.intParameters(j);
+                properties.put(property.propertyBinding(), property.intValue());
             }
 
-            for (int j = 0; j < rawMaterial.textureParametersLength(); j++) {
-                var rawTexture = rawMaterial.textureParameters(j);
-                textures.add(new Texture(rawTexture.propertyBinding(), modelDir.resolve(rawTexture.textureFile().replace(".bntx", ".png")).toAbsolutePath().toString()));
+            for (int j = 0; j < material.floatParametersLength(); j++) {
+                var property = material.floatParameters(j);
+                properties.put(property.propertyBinding(), property.floatValue());
             }
 
-            materials.put(materialName, new Material(
+            for (int j = 0; j < material.float4ParametersLength(); j++) {
+                var property = material.float4Parameters(j);
+                properties.put(property.propertyBinding(), new Vector4f(property.colorValue().r(), property.colorValue().g(), property.colorValue().b(), property.colorValue().a()));
+            }
+
+            for (int j = 0; j < material.float4LightParametersLength(); j++) {
+                var property = material.float4LightParameters(j);
+                properties.put(property.propertyBinding(), new Vector4f(property.colorValue().r(), property.colorValue().g(), property.colorValue().b(), property.colorValue().a()));
+            }
+
+            for (int j = 0; j < material.textureParametersLength(); j++) {
+                var rawTexture = material.textureParameters(j);
+                textures.add(new ApiTexture(rawTexture.propertyBinding(), modelDir.resolve(rawTexture.textureFile().replace(".bntx", ".png")).toAbsolutePath().toString()));
+            }
+
+            this.materials.put(materialName, new ApiMaterial(
                     materialName,
-                    textures
+                    textures,
+                    properties
             ));
         }
 
@@ -261,7 +270,7 @@ public class LAModel extends Model {
                     var subMesh = info.subMeshes(j);
                     var subIdxBuffer = indices.subList((int) subMesh.indexOffset(), (int) (subMesh.indexOffset() + subMesh.indexCount()));
                     if (!Objects.requireNonNull(info.meshName()).contains("lod"))
-                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.material(), materials.get(subMesh.material()), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
+                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.material(), this.materials.get(subMesh.material()), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
                 }
             }
         }
