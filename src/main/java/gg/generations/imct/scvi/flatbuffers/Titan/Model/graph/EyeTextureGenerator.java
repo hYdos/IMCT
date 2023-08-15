@@ -6,6 +6,8 @@ import org.joml.Vector4i;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.geom.AffineTransform;
+import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.WritableRaster;
@@ -231,12 +233,14 @@ public class EyeTextureGenerator {
     public static BufferedImage resizeImage(BufferedImage originalImage, int newWidth, int newHeight) {
         BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, originalImage.getType());
 
-        Graphics2D g2d = resizedImage.createGraphics();
-//        g2d.setColor(Color.WHITE);
-//        g2d.fillRect(0, 0, 256, 256);
-        g2d.drawImage(originalImage.getSubimage(0, 0, 1,1).getScaledInstance(newWidth, newHeight, Image.SCALE_DEFAULT), 0, 0, null);
-        g2d.dispose();
+        double xScale = (double)newWidth / originalImage.getWidth();
+        double yScale = (double)newHeight / originalImage.getHeight();
 
+        AffineTransform transform = new AffineTransform();
+        transform.scale(xScale, yScale);
+
+        AffineTransformOp op = new AffineTransformOp(transform, AffineTransformOp.TYPE_BICUBIC);
+        resizedImage = op.filter(originalImage, resizedImage);
 
         return resizedImage;
     }

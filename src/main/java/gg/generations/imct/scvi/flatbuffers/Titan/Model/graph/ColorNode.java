@@ -14,6 +14,11 @@ public class ColorNode extends BaseNode {
         process();
     }
 
+    @Override
+    public String toString() {
+        return "(%s, %s, %s, %s)".formatted(red, green, blue, alpha);
+    }
+
     protected void process() {
         image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 

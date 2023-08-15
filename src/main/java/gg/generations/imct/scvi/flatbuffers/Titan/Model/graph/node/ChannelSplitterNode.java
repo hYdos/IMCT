@@ -88,8 +88,8 @@ public class ChannelSplitterNode implements InputNode, ChangeListener {
         protected void process() {}
 
         public void setImage(BufferedImage image) {
-            update();
             this.image = image;
+            update();
         }
     }
 }

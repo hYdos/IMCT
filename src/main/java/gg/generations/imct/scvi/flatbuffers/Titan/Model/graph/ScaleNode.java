@@ -9,6 +9,9 @@ public class ScaleNode extends BaseNode {
     private InputNode input = InputNode.DEFAULT;
     @Override
     protected void process() {
+        image = input.getInputData().get();
+
+        if(image.getWidth() == scale && image.getHeight() == scale) return;
         image = EyeTextureGenerator.resizeImage(input.getInputData().get(), scale, scale);
     }
 

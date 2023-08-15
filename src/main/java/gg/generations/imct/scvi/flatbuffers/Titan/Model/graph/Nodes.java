@@ -8,6 +8,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.WritableRaster;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -48,11 +49,11 @@ public class Nodes {
     }
 
     public static void displayImage(BufferedImage image, String title) {
-//        try {
-//            ImageIO.write(image, "PNG", new File(title + ".png"));
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
+        try {
+            ImageIO.write(image, "PNG", new File(title + ".png"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         JFrame frame = new JFrame(title);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 

@@ -14,8 +14,6 @@ public class CompositeNode extends BaseNode {
     public CompositeNode() {
     }
 
-    private final List<ChangeListener> listeners = new ArrayList<>();
-
     protected void process() {
         if (composite == null) {
             image = top.getInputData().get();
@@ -26,6 +24,9 @@ public class CompositeNode extends BaseNode {
             image = new BufferedImage(bottomImage.getWidth(), bottomImage.getHeight(), BufferedImage.TYPE_INT_ARGB);
 
             var graphics = image.createGraphics();
+//            graphics.setComposite(AlphaComposite.Clear);
+//            graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+
             graphics.drawImage(bottomImage, 0, 0, null);
 
             graphics.setComposite(composite);
@@ -37,20 +38,20 @@ public class CompositeNode extends BaseNode {
     public CompositeNode setTop(InputNode top) {
         this.top = top;
         top.addChangeListener(this);
-        process();
+        update();
         return this;
     }
 
     public CompositeNode setBottom(InputNode bottom) {
         this.bottom = bottom;
+        update();
         bottom.addChangeListener(this);
-        process();
         return this;
     }
 
     public CompositeNode setComposite(Composite composite) {
         this.composite = composite;
-        process();
+        update();
         return this;
     }
 }
