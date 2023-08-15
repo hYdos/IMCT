@@ -14,14 +14,13 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
 public class SVWriter {
     private static final int HALF_FLOAT_BYTES = Short.BYTES;
-    // TODO: TEMPORARY. ONLY FOR CHECKING TYPES
-    private static final TRMBF tmp = null;
 
     @SuppressWarnings("resource")
     public static void write(Model model, Path path, SVExportSettings settings) {
@@ -32,57 +31,89 @@ public class SVWriter {
             Files.write(path.resolve(commonName + ".trmdl"), new ByteBufferBackedInputStream(createTRMDL(commonName, settings)).readAllBytes());
             Files.write(path.resolve(commonName + ".trmsh"), new ByteBufferBackedInputStream(createTRMSH(commonName, meshData, model, settings)).readAllBytes());
             Files.write(path.resolve(commonName + ".trmbf"), new ByteBufferBackedInputStream(createTRMBF(meshData)).readAllBytes());
+            Files.write(path.resolve(commonName + ".trmtr"), new ByteBufferBackedInputStream(createTRMTR(model, settings)).readAllBytes());
         } catch (IOException e) {
             throw new RuntimeException("Failed to create SV model", e);
         }
     }
 
-    private static MeshData generateMeshData(Model model, SVExportSettings settings) {
-        var vertexStride = calculateStride(settings);
-        var totalVertexCount = model.meshes.stream()
-                .mapToInt(mesh -> mesh.positions().size())
-                .sum();
-        var vertexBuffer = ByteBuffer.allocate(totalVertexCount * vertexStride).order(ByteOrder.LITTLE_ENDIAN);
-        var idxBuffer = new ArrayList<Integer>();
-        var meshOffsetMap = new HashMap<Mesh, Integer>();
+    private static ByteBuffer createTRMTR(Model model, SVExportSettings settings) throws IOException {
+        var builder = new FlatBufferBuilder(1);
+        var materials = new ArrayList<Integer>();
+        for (var entry : model.materials.entrySet()) {
+            var testing = TRMTR.getRootAsTRMTR(ByteBuffer.wrap(Files.readAllBytes(Paths.get("C:/Users/hydos/Desktop/sv/pm0004_00_00.trmtr"))));
+            System.out.println("ok");
 
-        for (var mesh : model.meshes) {
-            meshOffsetMap.put(mesh, idxBuffer.size());
-            idxBuffer.addAll(mesh.indices());
-
-            for (var vertexId = 0; vertexId < mesh.positions().size(); vertexId++) {
-                for (var attrib : settings.layout()) {
-                    switch (attrib) {
-                        case POSITION -> vertexBuffer.putFloat(mesh.positions().get(vertexId).x())
-                                .putFloat(mesh.positions().get(vertexId).y())
-                                .putFloat(mesh.positions().get(vertexId).z());
-                        case NORMAL ->
-                                vertexBuffer.putShort(TrinityUtils.writeHalfFloat(mesh.normals().get(vertexId).x()))
-                                        .putShort(TrinityUtils.writeHalfFloat(mesh.positions().get(vertexId).y()))
-                                        .putShort(TrinityUtils.writeHalfFloat(mesh.positions().get(vertexId).z()));
-                        case TEXCOORD -> vertexBuffer.putFloat(mesh.uvs().get(vertexId).x())
-                                .putFloat(mesh.uvs().get(vertexId).y());
-                        case BLEND_INDICES -> vertexBuffer.put((byte) (mesh.boneIds().get(vertexId).x() & 0xFF))
-                                .put((byte) (mesh.boneIds().get(vertexId).y() & 0xFF))
-                                .put((byte) (mesh.boneIds().get(vertexId).z() & 0xFF))
-                                .put((byte) (mesh.boneIds().get(vertexId).w() & 0xFF));
-                        case BLEND_WEIGHTS ->
-                                vertexBuffer.putShort((short) Math.round(mesh.weights().get(vertexId).x() * 65535))
-                                        .putShort((short) Math.round(mesh.weights().get(vertexId).y() * 65535))
-                                        .putShort((short) Math.round(mesh.weights().get(vertexId).z() * 65535))
-                                        .putShort((short) Math.round(mesh.weights().get(vertexId).w() * 65535));
-                        default -> throw new RuntimeException("Couldn't write Attribute: " + attrib);
-                    }
-                }
-            }
+            materials.add(Material.createMaterial(
+                    builder,
+                    builder.createString(entry.getKey()),
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+            ));
         }
 
-        return new MeshData(
-                vertexBuffer.flip(),
-                idxBuffer,
-                vertexStride,
-                meshOffsetMap
-        );
+        var trmtr = TRMTR.createTRMTR(builder, 0, TRMTR.createMaterialsVector(builder, materials.stream().mapToInt(value -> value).toArray()));
+        TRMTR.finishTRMTRBuffer(builder, trmtr);
+        return builder.dataBuffer().duplicate();
+    }
+
+    private static ByteBuffer createTRMDL(String commonName, SVExportSettings settings) {
+        var builder = new FlatBufferBuilder(1);
+
+        // Bounds
+        Bounds.startBounds(builder);
+        Bounds.addMin(builder, Vec3.createVec3(builder, settings.minBounds().x(), settings.minBounds().y(), settings.minBounds().z()));
+        Bounds.addMax(builder, Vec3.createVec3(builder, settings.minBounds().x(), settings.minBounds().y(), settings.minBounds().z()));
+        var boundsOffset = Bounds.endBounds(builder);
+
+        // Lods (Blank if possible for now)
+        var lodIndexOffset = LodIndex.createLodIndex(builder, 0); // unk0 is obv the quality index???
+        var lodIndexes = Lod.createIndexVector(builder, new int[]{lodIndexOffset});
+        var lodTypeOffset = builder.createString("Custom");
+        var lodOffset = Lod.createLod(builder, lodIndexes, lodTypeOffset);
+        var lodVector = TRMDL.createLodsVector(builder, new int[]{lodOffset});
+
+        // Materials TODO: material sets like rare
+        var materialFileOffset = builder.createString(commonName + ".trmtl");
+        var materialsVector = TRMDL.createMaterialsVector(builder, new int[]{materialFileOffset});
+
+        // Skeleton
+        var fileNameOffset = builder.createString(commonName + ".trskl");
+        var skeletonOffset = trskeleton.createtrskeleton(builder, fileNameOffset);
+
+        // Meshes
+        fileNameOffset = builder.createString(commonName + ".trmsh");
+        var meshFileOffset = trmeshes.createtrmeshes(builder, fileNameOffset);
+        var meshesVector = TRMDL.createMeshesVector(builder, new int[]{meshFileOffset});
+
+        TRMDL.startTRMDL(builder);
+        TRMDL.addUnk0(builder, 0);
+        TRMDL.addMeshes(builder, meshesVector);
+        TRMDL.addSkeleton(builder, skeletonOffset);
+        TRMDL.addMaterials(builder, materialsVector);
+        TRMDL.addLods(builder, lodVector);
+        TRMDL.addBounds(builder, boundsOffset);
+        TRMDL.addUnkVec(builder, Vec4.createVec4(builder, 0, 0, 0, 0));
+        TRMDL.addUnk7(builder, 0);
+        TRMDL.addUnk8(builder, 0);
+        TRMDL.addUnk9(builder, 2);
+        var trmdlOffset = TRMDL.endTRMDL(builder);
+        TRMDL.finishTRMDLBuffer(builder, trmdlOffset);
+
+        return builder.dataBuffer().duplicate();
     }
 
     private static ByteBuffer createTRMBF(MeshData data) {
@@ -92,8 +123,8 @@ public class SVWriter {
         var rawIndexBuffer = ByteBuffer.allocate(Short.BYTES * data.indexBuffer.size()); // hope its below Unsigned Short max. TODO: unhardcode
         for (var i : data.indexBuffer) rawIndexBuffer.putShort((short) (i & 0xFFFF));
 
-        var morphsOffset = Buffer.createMorphsVector(builder, new int[] {Morphs.createMorphs(builder, MorphBuffer.createBufferVector(builder, new byte[0]))});
-        var idxBufferOffset = Buffer.createIndexBufferVector(builder, new int[] {Indexes.createIndexes(builder, builder.createByteVector(rawIndexBuffer))});
+        var morphsOffset = Buffer.createMorphsVector(builder, new int[]{Morphs.createMorphs(builder, MorphBuffer.createBufferVector(builder, new byte[0]))});
+        var idxBufferOffset = Buffer.createIndexBufferVector(builder, new int[]{Indexes.createIndexes(builder, builder.createByteVector(rawIndexBuffer))});
         var vertexBufferOffset = Buffer.createVertexBufferVector(builder, new int[]{Vertices.createVertices(builder, builder.createByteVector(data.vertexBuffer()))});
         var buffersOffset = TRMBF.createBuffersVector(builder, new int[]{Buffer.createBuffer(builder, idxBufferOffset, vertexBufferOffset, morphsOffset)});
 
@@ -148,50 +179,52 @@ public class SVWriter {
         return builder.dataBuffer().duplicate();
     }
 
-    private static ByteBuffer createTRMDL(String commonName, SVExportSettings settings) {
-        var builder = new FlatBufferBuilder(1);
+    private static MeshData generateMeshData(Model model, SVExportSettings settings) {
+        var vertexStride = calculateStride(settings);
+        var totalVertexCount = model.meshes.stream()
+                .mapToInt(mesh -> mesh.positions().size())
+                .sum();
+        var vertexBuffer = ByteBuffer.allocate(totalVertexCount * vertexStride).order(ByteOrder.LITTLE_ENDIAN);
+        var idxBuffer = new ArrayList<Integer>();
+        var meshOffsetMap = new HashMap<Mesh, Integer>();
 
-        // Bounds
-        Bounds.startBounds(builder);
-        Bounds.addMin(builder, Vec3.createVec3(builder, settings.minBounds().x(), settings.minBounds().y(), settings.minBounds().z()));
-        Bounds.addMax(builder, Vec3.createVec3(builder, settings.minBounds().x(), settings.minBounds().y(), settings.minBounds().z()));
-        var boundsOffset = Bounds.endBounds(builder);
+        for (var mesh : model.meshes) {
+            meshOffsetMap.put(mesh, idxBuffer.size());
+            idxBuffer.addAll(mesh.indices());
 
-        // Lods (Blank if possible for now)
-        var lodIndexOffset = LodIndex.createLodIndex(builder, 0); // unk0 is obv the quality index???
-        var lodIndexes = Lod.createIndexVector(builder, new int[]{lodIndexOffset});
-        var lodTypeOffset = builder.createString("Custom");
-        var lodOffset = Lod.createLod(builder, lodIndexes, lodTypeOffset);
-        var lodVector = TRMDL.createLodsVector(builder, new int[]{lodOffset});
+            for (var vertexId = 0; vertexId < mesh.positions().size(); vertexId++) {
+                for (var attrib : settings.layout()) {
+                    switch (attrib) {
+                        case POSITION -> vertexBuffer.putFloat(mesh.positions().get(vertexId).x())
+                                .putFloat(mesh.positions().get(vertexId).y())
+                                .putFloat(mesh.positions().get(vertexId).z());
+                        case NORMAL ->
+                                vertexBuffer.putShort(TrinityUtils.writeHalfFloat(mesh.normals().get(vertexId).x()))
+                                        .putShort(TrinityUtils.writeHalfFloat(mesh.positions().get(vertexId).y()))
+                                        .putShort(TrinityUtils.writeHalfFloat(mesh.positions().get(vertexId).z()));
+                        case TEXCOORD -> vertexBuffer.putFloat(mesh.uvs().get(vertexId).x())
+                                .putFloat(mesh.uvs().get(vertexId).y());
+                        case BLEND_INDICES -> vertexBuffer.put((byte) (mesh.boneIds().get(vertexId).x() & 0xFF))
+                                .put((byte) (mesh.boneIds().get(vertexId).y() & 0xFF))
+                                .put((byte) (mesh.boneIds().get(vertexId).z() & 0xFF))
+                                .put((byte) (mesh.boneIds().get(vertexId).w() & 0xFF));
+                        case BLEND_WEIGHTS ->
+                                vertexBuffer.putShort((short) Math.round(mesh.weights().get(vertexId).x() * 65535))
+                                        .putShort((short) Math.round(mesh.weights().get(vertexId).y() * 65535))
+                                        .putShort((short) Math.round(mesh.weights().get(vertexId).z() * 65535))
+                                        .putShort((short) Math.round(mesh.weights().get(vertexId).w() * 65535));
+                        default -> throw new RuntimeException("Couldn't write Attribute: " + attrib);
+                    }
+                }
+            }
+        }
 
-        // Materials TODO: material sets like rare
-        var materialFileOffset = builder.createString(commonName + ".trmtl");
-        var materialsVector = TRMDL.createMaterialsVector(builder, new int[]{materialFileOffset});
-
-        // Skeleton
-        var fileNameOffset = builder.createString(commonName + ".trskl");
-        var skeletonOffset = trskeleton.createtrskeleton(builder, fileNameOffset);
-
-        // Meshes
-        fileNameOffset = builder.createString(commonName + ".trmsh");
-        var meshFileOffset = trmeshes.createtrmeshes(builder, fileNameOffset);
-        var meshesVector = TRMDL.createMeshesVector(builder, new int[]{meshFileOffset});
-
-        TRMDL.startTRMDL(builder);
-        TRMDL.addUnk0(builder, 0);
-        TRMDL.addMeshes(builder, meshesVector);
-        TRMDL.addSkeleton(builder, skeletonOffset);
-        TRMDL.addMaterials(builder, materialsVector);
-        TRMDL.addLods(builder, lodVector);
-        TRMDL.addBounds(builder, boundsOffset);
-        TRMDL.addUnkVec(builder, Vec4.createVec4(builder, 0, 0, 0, 0));
-        TRMDL.addUnk7(builder, 0);
-        TRMDL.addUnk8(builder, 0);
-        TRMDL.addUnk9(builder, 2);
-        var trmdlOffset = TRMDL.endTRMDL(builder);
-        TRMDL.finishTRMDLBuffer(builder, trmdlOffset);
-
-        return builder.dataBuffer().duplicate();
+        return new MeshData(
+                vertexBuffer.flip(),
+                idxBuffer,
+                vertexStride,
+                meshOffsetMap
+        );
     }
 
     private static int createSVAttributes(FlatBufferBuilder builder, int stride, List<AttributeType> layout) {
