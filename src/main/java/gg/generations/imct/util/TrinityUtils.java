@@ -31,32 +31,27 @@ public class TrinityUtils {
         return new Vector4f(x, y, z, w);
     }
 
-    public static float readHalfFloat(short bits) {
-        int s = (bits >> 15) & 0x0001;
-        int e = (bits >> 10) & 0x001F;
-        int m = bits & 0x03FF;
+    public static short writeHalfFloat(float value) {
+        var floatValueBits = Float.floatToIntBits(value);
 
-        if (e == 0) {
-            if (m == 0) {
-                // +/- 0
-                return Float.intBitsToFloat(s << 31);
-            } else {
-                // Denormalized number
-                e = 1;
-            }
-        } else if (e == 31) {
-            if (m == 0) {
-                // +/- Infinity
-                return Float.intBitsToFloat((s << 31) | 0x7F800000);
-            } else {
-                // NaN
-                return Float.intBitsToFloat((s << 31) | 0x7F800000 | (m << 13));
-            }
-        }
+        var sign = (floatValueBits >> 31) & 0x00000001;
+        var exponent = (floatValueBits >> 23) & 0x000000ff;
+        var mantissa = floatValueBits & 0x007fffff;
 
-        var exponent = e - 15;
-        var mantissa = m << 13;
-        var floatValueBits = (s << 31) | ((exponent + 127) << 23) | mantissa;
+        var halfValueBits = (sign << 15) | ((exponent - 127 + 15) << 10) | (mantissa >> 13);
+
+        return (short) halfValueBits;
+    }
+
+    public static float readHalfFloat(short value) {
+        var halfValueBits = value & 0x0000ffff;
+
+        var sign = (halfValueBits >> 15) & 0x00000001;
+        var exponent = (halfValueBits >> 10) & 0x0000001f;
+        var mantissa = halfValueBits & 0x000003ff;
+
+        var floatValueBits = (sign << 31) | ((exponent - 15 + 127) << 23) | (mantissa << 13);
+
         return Float.intBitsToFloat(floatValueBits);
     }
 }

@@ -284,7 +284,7 @@ public class SVModel extends Model {
     ) {
     }
 
-    private enum AttributeType {
+    public enum AttributeType {
         NONE,
         POSITION,
         NORMAL,
@@ -301,7 +301,7 @@ public class SVModel extends Model {
         }
     }
 
-    private enum AttributeSize {
+    public enum AttributeSize {
         NONE(0, 0),
         RGBA_8_UNORM(20, Byte.BYTES * 4),
         RGBA_8_UNSIGNED(22, Byte.BYTES * 4),
@@ -313,7 +313,7 @@ public class SVModel extends Model {
         RGB_32_FLOAT(51, Float.BYTES * 3),
         RGBA_32_FLOAT(54, Float.BYTES * 4);
 
-        private final int id;
+        public final int id;
         public final int size;
 
         AttributeSize(int id, int size) {
@@ -327,7 +327,7 @@ public class SVModel extends Model {
         }
     }
 
-    private enum IndexLayout {
+    public enum IndexLayout {
         UINT8(Byte.BYTES),
         UINT16(Short.BYTES),
         UINT32(Integer.BYTES),
