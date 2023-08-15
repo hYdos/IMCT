@@ -51,7 +51,6 @@ public class EyeGraph {
 
         var lymScale = new ScaleNode().setScale(scale).setInput(lym);
 
-        lymScale.display("derp");
 
         lymSplit.setInput(lymScale);
 
@@ -81,13 +80,12 @@ public class EyeGraph {
     public BufferedImage update(ApiMaterial material, Path modelDir) {
         alb.setImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_alb.png"));
         lym.setImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_lym.png"));
-        lym.display("LYm");
         mask.setImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_msk.png"));
 
-        lymSplit.getRedChannel().getInputData().display("RedChannel");
-        lymSplit.getGreenChannel().getInputData().display("GreenChannel");
-        lymSplit.getBlueChannel().getInputData().display("BlueChannel");
-        lymSplit.getAlphaChannel().getInputData().display("AlphaChannel");
+        lymSplit.getRedChannel().getInputData();
+        lymSplit.getGreenChannel().getInputData();
+        lymSplit.getBlueChannel().getInputData();
+        lymSplit.getAlphaChannel().getInputData();
 
         if(material.properties().get("BaseColorLayer1") instanceof Vector4f vec) baseColor1.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
         if(material.properties().get("BaseColorLayer2") instanceof Vector4f vec) baseColor2.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
@@ -100,9 +98,6 @@ public class EyeGraph {
         if(material.properties().get("EmissionColorLayer4") instanceof Vector4f vec) emissionColor4.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
         if(material.properties().get("EmissionColorLayer5") instanceof Vector4f vec) emissionColor5.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
 
-//        base.display("Basic");
-//        emission.display("emission");
-//        mask.display("Mask");
         return output.get();
     }
 
@@ -136,7 +131,7 @@ public class EyeGraph {
         return new MaskNode().setMask(mask).setColor(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
     }
 
-    private static class GrayScaleNode extends BaseNode {
+    public static class GrayScaleNode extends BaseNode {
         private InputNode input = DEFAULT;
 
         @Override

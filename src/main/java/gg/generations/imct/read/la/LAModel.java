@@ -7,6 +7,8 @@ import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.la.flatbuffers.Hayabusa.Model.*;
 import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.TRMBF;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.BodyGraph;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeGraph;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
 import gg.generations.imct.util.TrinityUtils;
 import org.joml.*;
@@ -349,11 +351,17 @@ public class LAModel extends Model {
         }
     }
 
+    private static EyeGraph ARCEUS = new EyeGraph(128);
+
+    private static BodyGraph ARCEUS_BODY = new BodyGraph(512);
+
     @Override
     protected void processEyes(Path modelDir) {
         materials.forEach((key, value) -> {
             if(value.properties().get("shader").equals("Eye")) {
-                EyeTextureGenerator.displayImage(EyeTextureGenerator.generate(value, modelDir), key);
+                EyeTextureGenerator.displayImage(ARCEUS.update(value, modelDir), key);
+            } else if(value.properties().get("shader").equals("Standard")) {
+                EyeTextureGenerator.displayImage(ARCEUS_BODY.update(value), key);
             }
         });
     }

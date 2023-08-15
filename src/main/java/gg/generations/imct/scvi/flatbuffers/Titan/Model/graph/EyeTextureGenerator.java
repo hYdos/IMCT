@@ -17,9 +17,8 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 public class EyeTextureGenerator {
-    private static EyeGraph ARCEUS = new EyeGraph(128);
-    public static BufferedImage generate(ApiMaterial material, Path modelDir) {
-        return ARCEUS.update(material, modelDir);
+//    public static BufferedImage generate(ApiMaterial material, Path modelDir) {
+//        return ARCEUS.update(material, modelDir);
 //        var channels = splitImageChannels(modelDir.resolve(modelDir.getFileName().toString() + "_eye_lym.png").toString());
 //
 //        var base = resizeImage(EyeTextureGenerator.loadImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_alb.png").toString()), 256, 256);
@@ -58,7 +57,7 @@ public class EyeTextureGenerator {
 ////        BufferedImage base = createBase(material, "BaseColorLayer");
 ////        displayImage(additionModeComposition(createBase(material, "EmissionColorLayer"), base), "Emission");
 //        return finishd;
-    }
+//    }
 
     private static BufferedImage layer(BufferedImage base, BufferedImage color, Composite composite) {
         var result = new BufferedImage(base.getWidth(), base.getHeight(), BufferedImage.TYPE_INT_ARGB);

@@ -1,12 +1,15 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph;
 
 import org.joml.Vector4i;
+import org.opencv.core.Mat;
+import org.opencv.imgcodecs.Imgcodecs;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
+import java.awt.image.DataBufferByte;
 import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
@@ -34,7 +37,7 @@ public class Nodes {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 for (int i = 0; i < 4; i++) {
-                    int newPixel = (((original.getRGB(x, y) >> (i * 8)) & 0xFF) << 24) | (255 << 16) | (255 << 8) | 255; // White color
+                    int newPixel = (process(original.getRGB(x, y), i) << 24) | (255 << 16) | (255 << 8) | 255; // White color
                     rasters[i].setPixel(x, y, colorModel.getComponents(newPixel, null, 0));
                 }
             }
@@ -46,6 +49,10 @@ public class Nodes {
         }
 
         return new EyeTextureGenerator.ChannelImages(resultImages[2], resultImages[1], resultImages[0], resultImages[3]);
+    }
+
+    private static int process(int pixel, int channel) {
+        return (pixel >> (channel * 8)) & 0xFF;
     }
 
     public static void displayImage(BufferedImage image, String title) {
