@@ -1,5 +1,6 @@
 package gg.generations.imct.api;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -16,5 +17,18 @@ public record ApiMaterial(
 
     public String getShader() {
         return (String) properties.get("shader");
+    }
+
+    public ApiMaterial with(Map<String, String> map) {
+        var newTextures = new ArrayList<ApiTexture>();
+
+        textures().forEach(apiTexture -> {
+            var t = map.get(apiTexture.filePath());
+            if(t != null) {
+                newTextures.add(new ApiTexture(apiTexture.type(), t));
+            }
+        });
+
+        return newTextures.isEmpty() ? null : new ApiMaterial(name, newTextures, properties);
     }
 }

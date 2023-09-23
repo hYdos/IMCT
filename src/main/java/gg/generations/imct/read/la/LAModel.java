@@ -358,11 +358,13 @@ public class LAModel extends Model {
     @Override
     protected void processEyes(Path modelDir) {
         materials.forEach((key, value) -> {
-            if(value.properties().get("shader").equals("Eye")) {
-                EyeTextureGenerator.displayImage(ARCEUS.update(value, modelDir), key);
-            } else if(value.properties().get("shader").equals("Standard")) {
-                EyeTextureGenerator.displayImage(ARCEUS_BODY.update(value), key);
-            }
+            value.properties().forEach((k, v) -> System.out.println(k + " -> " + v));
+
+//            if(value.properties().get("shader").equals("Eye")) {
+//                EyeTextureGenerator.displayImage(ARCEUS.update(value, modelDir), key);
+//            } else if(value.properties().get("shader").equals("Standard")) {
+//                EyeTextureGenerator.displayImage(ARCEUS_BODY.update(value), key);
+//            }
         });
     }
 }

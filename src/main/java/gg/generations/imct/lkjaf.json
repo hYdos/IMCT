@@ -1,0 +1,49 @@
+{
+  "scale": 2.643625770064621,
+  "materials": {
+    "body_b": {
+      "type": "solid",
+      "texture": "pm0000_00_00_body_b_alb.png"
+    },
+    "body_a": {
+      "type": "solid",
+      "texture": "pm0000_00_00_body_a_alb.png"
+    }
+  },
+  "defaultVariant": {
+    "pm0000_00_00_crack02_mesh_body_a": {
+      "material": "body_a",
+      "hide": "false"
+    },
+    "pm0000_00_00_crack01_mesh_body_b": {
+      "material": "body_b",
+      "hide": "false"
+    },
+    "pm0000_00_00_crack01_mesh_body_a": {
+      "material": "body_a",
+      "hide": "false"
+    },
+    "pm0000_00_00_crack02_mesh_body_b": {
+      "material": "body_b",
+      "hide": "false"
+    },
+    "pm0000_00_00_crack03_mesh_body_b": {
+      "material": "body_b",
+      "hide": "false"
+    },
+    "pm0000_00_00_crack03_mesh_body_a": {
+      "material": "body_a",
+      "hide": "false"
+    },
+    "pm0000_00_00_body_mesh_body_a": {
+      "material": "body_a",
+      "hide": "false"
+    }
+  },
+  "variants": {
+    "normal": {},
+    "shiny": {
+
+    }
+  }
+}

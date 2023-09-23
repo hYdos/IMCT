@@ -1,24 +1,99 @@
 package gg.generations.imct;
 
+import gg.generations.imct.read.la.LAModel;
+import gg.generations.imct.read.scvi.SVModel;
 import gg.generations.imct.read.swsh.SWSHModel;
-import gg.generations.imct.write.SVExportSettings;
-import gg.generations.imct.write.SVWriter;
+import gg.generations.imct.write.GlbWriter;
+import nu.pattern.OpenCV;
 
-import java.nio.file.Paths;
+import java.io.IOException;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.EnumSet;
+import java.util.stream.Stream;
 
 public class IMCT {
 
-    public static void main(String[] args) {
-        var swshBulbasaur = Paths.get("F:\\PokemonModels\\SWSH\\pm0001_00\\bin\\pokemon\\pm0001_00");
-        SVWriter.write(new SWSHModel(swshBulbasaur), Paths.get("output/svBulbasaur"), new SVExportSettings());
+    public static void main(String[] args) throws IOException {
+        OpenCV.loadLocally();
 
 //        GlbWriter.write(new SVModel(Paths.get("F:\\PokemonModels\\SV\\pokemon\\data\\pm0006\\pm0006_00_00")), Paths.get("output/ScarletViolet.glb"));
-//        GlbWriter.write(new LAModel(Paths.get("F:\\PokemonModels\\LA\\pm0486_00_00")), Paths.get("output/LegendsArceus.glb"));
+//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0004\\pm0004_00_00"), SVModel::new, Paths.get("output/0004"));
+//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0005\\pm0005_00_00"), SVModel::new, Paths.get("output/0005"));
+
+        var path = Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data");
+
+        var paths = Files.walk(path, 0).flatMap(x -> {
+            try {
+                return Files.walk(x, 1).filter(a -> !x.equals(a)).flatMap(a -> {
+//                    System.out.print("a -> " + a);
+                    try {
+                        return Files.walk(a, 1).filter(b -> !b.equals(a));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).toList();
+
+        int size = paths.size();
+
+        for (int i = 400; i < size; i++) {
+            var p = paths.get(i);
+            System.out.println((i+1) + "/" + (size) + " Processing " + p.toString());
+            try {
+                write(p);
+            } catch (RuntimeException e) {
+                e.printStackTrace();
+            }
+        }
+
+//        write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0006\\pm0006_00_00"));
 //        GlbWriter.write(new SWSHModel(Paths.get("F:\\PokemonModels\\SWSH\\pm0006_81_00")), Paths.get("output/SwordShield.glb"));
 //        GlbWriter.write(new LGModel(Paths.get("F:\\PokemonModels\\LGPE\\pm0008_00")), Paths.get("output/LetsGoPikachuEevee.glb"));
 //        GlbWriter.write(new UsUmModel(List.of(
 //                Paths.get("F:\\PokemonModels\\USUM\\1 (Model)\\1162 - Poipole.bin"),
 //                Paths.get("F:\\PokemonModels\\USUM\\2 (Tex)\\1162 - Poipole.bin")
 //        )), Paths.get("output/UltraSunUltraMoon.glb"));
+    }
+
+    public static void write(Path path) {
+        var oput = Paths.get("output/" + path.getFileName().toString());
+        GlbWriter.write(path, SVModel::new, oput);
+        try {
+            deleteFolder(oput);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void deleteFolder(Path folderPath) throws IOException {
+        Files.walkFileTree(folderPath, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE,
+                new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        Files.delete(file);
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                        // Handle file visit failure (optional)
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                        if (exc == null) {
+                            Files.delete(dir);
+                            return FileVisitResult.CONTINUE;
+                        } else {
+                            // Directory iteration failed
+                            throw exc;
+                        }
+                    }
+                });
     }
 }

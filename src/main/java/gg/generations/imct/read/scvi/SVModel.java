@@ -6,14 +6,17 @@ import gg.generations.imct.api.ApiTexture;
 import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.*;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeGraph;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.FIreGraph;
 import gg.generations.imct.util.TrinityUtils;
 import org.joml.*;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.function.Consumer;
 
 public class SVModel extends Model {
 
@@ -158,9 +161,9 @@ public class SVModel extends Model {
 
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
-            System.out.println("Processing Mesh Info " + i);
+//            System.out.println("Processing Mesh Info " + i);
             for (int mesh = 0; mesh < meshInfo.get(i).meshesLength(); mesh++) {
-                System.out.println("Processing Mesh " + i);
+//                System.out.println("Processing Mesh " + i);
                 var info = meshInfo.get(i).meshes(mesh);
                 var data = meshData.get(i).buffers(mesh);
                 var vertexBuffer = data.vertexBuffer(0).bufferAsByteBuffer();
@@ -218,7 +221,11 @@ public class SVModel extends Model {
                                     var z = vertexBuffer.get() & 0xFF;
                                     var w = vertexBuffer.get() & 0xFF;
                                     colors.add(new Vector4f(x, y, z, w));
-                                } else throw new RuntimeException("Unexpected color format: " + attribute.type);
+                                } else if(Objects.requireNonNull(attribute.size) == AttributeSize.RGBA_32_FLOAT){
+                                    colors.add(new Vector4f(vertexBuffer.getFloat(), vertexBuffer.getFloat(), vertexBuffer.getFloat(), vertexBuffer.getFloat()));
+                                } else {
+                                    throw new RuntimeException("Unexpected color format: " + attribute.type + " " + attribute.size);
+                                }
                             }
 
                             case NORMAL -> {
@@ -271,7 +278,90 @@ public class SVModel extends Model {
                         meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), this.materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
                 }
             }
+
         }
+        processEyes(modelDir);
+    }
+
+    private static EyeGraph SV_EYE = new EyeGraph(256);
+
+    private static FIreGraph SV_FIRE = new FIreGraph(256);
+
+    protected void processEyes(Path modelDir) {
+        var left_eye = materials.remove("l_eye");
+
+        var right_eye = materials.remove("r_eye");
+
+        if(left_eye == null) return;
+
+        EyeTextureGenerator.generate(SV_EYE.update(left_eye, modelDir), "eyes");
+
+        var eyes = new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", Path.of("eyes.png").toAbsolutePath().toString())), new HashMap<>());
+
+        materials.put("eyes", eyes);
+
+        List<Mesh> listToConvert = new ArrayList<>();
+
+        var fire = materials.get("fire");
+
+        if(fire != null) {
+            EyeTextureGenerator.generate(SV_FIRE.update(fire, modelDir), "fire");
+            fire = new ApiMaterial("fire", List.of(new ApiTexture("BaseColorMap", Path.of("fire.png").toAbsolutePath().toString())), new HashMap<>());
+            materials.put("fire", fire);
+        }
+
+        for (Mesh mesh : meshes) {
+            if(mesh.material().name().endsWith("_eye") || mesh.material().name().equals("fire")) {
+                listToConvert.add(mesh);
+            }
+        }
+
+        for (Mesh mesh : listToConvert) {
+            var newMesh = mesh.withNewMaterial(mesh.material().name().endsWith("_eye") ? eyes : fire);
+            meshes.add(newMesh);
+            meshes.remove(mesh);
+        }
+
+        var map = findTexturePairs(modelDir);
+
+
+        materials.forEach((key, value) -> {
+            var shinyMaterial = value.with(map);
+            if(shinyMaterial != null) {
+                shinyMaterials.put(key, shinyMaterial);
+            }
+        });
+    }
+
+    public static Map<String, String> findTexturePairs(Path directoryPath) {
+        // Create a map to store pairs of textures
+        Map<String, String> texturePairs = new HashMap<>();
+
+        try {
+            // Walk through the directory and its subdirectories
+            Files.walk(directoryPath)
+                    .filter(Files::isRegularFile) // Only consider regular files
+                    .forEach(filePath -> {
+                        String fileName = filePath.toAbsolutePath().toString();
+
+                        // Check if "_rare" is present in the filename without ".png"
+                        if (fileName.contains("_rare") && fileName.endsWith(".png")) {
+                            // Remove "_rare" from the filename and find the corresponding texture name
+                            String textureName = fileName.replace("_rare", "");
+
+                            // Check if the counterpart texture exists
+                            Path counterpartPath = filePath.resolveSibling(textureName);
+                            if (Files.exists(counterpartPath)) {
+                                texturePairs.put(textureName, fileName);
+                            }
+                        }
+                    });
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return texturePairs;
     }
 
     protected Vector3f toVec3(Vec3 vec) {

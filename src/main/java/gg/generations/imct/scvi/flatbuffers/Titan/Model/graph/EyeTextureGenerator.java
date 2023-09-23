@@ -210,13 +210,15 @@ public class EyeTextureGenerator {
         }
     }
 
-    public static void displayImage(BufferedImage image, String title) {
+    public static void generate(BufferedImage image, String name) {
         try {
-            ImageIO.write(image, "PNG", new File(title + ".png"));
+            ImageIO.write(image, "PNG", new File(name + ".png"));
         } catch (IOException | IllegalArgumentException e) {
-            System.out.println("Failed to display: " + title);
+            System.out.println("Failed to display: " + name);
         }
+    }
 
+    public static void displayImage(BufferedImage image, String title) {
         JFrame frame = new JFrame(title);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 

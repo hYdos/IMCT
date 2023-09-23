@@ -82,4 +82,20 @@ public record Mesh(
 
         return buffer.rewind();
     }
+
+    public Mesh withNewMaterial(ApiMaterial material) {
+        return new Mesh(
+            name,
+            material,
+            indices,
+            positions,
+            normals,
+            tangents,
+            colors,
+            weights,
+            boneIds,
+            biNormals,
+            uvs
+        );
+    }
 }

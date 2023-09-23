@@ -22,6 +22,13 @@ public class MaskNode extends BaseNode {
         return setColor((int) (red * 255), (int) (green * 255), (int) (blue * 255));
     }
 
+    public MaskNode resetColor() {
+        this.red = 255;
+        this.blue = 255;
+        this.green = 255;
+        return this;
+    }
+
     public MaskNode setMask(InputNode mask) {
         this.mask = mask;
         mask.addChangeListener(this);
