@@ -1,6 +1,7 @@
 package gg.generations.imct;
 
 import gg.generations.imct.read.la.LAModel;
+import gg.generations.imct.read.scvi.ImageDisplayComponent;
 import gg.generations.imct.read.scvi.SVModel;
 import gg.generations.imct.read.swsh.SWSHModel;
 import gg.generations.imct.write.GlbWriter;
@@ -21,7 +22,12 @@ public class IMCT {
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0004\\pm0004_00_00"), SVModel::new, Paths.get("output/0004"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0005\\pm0005_00_00"), SVModel::new, Paths.get("output/0005"));
 
-        var path = Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data");
+//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0048_00_00\\pm0048_00_00"), SVModel::new, Paths.get("output\\blep\\pm0048_00_01"));
+//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_01_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_11_00"));
+//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_11_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_01_00"));
+
+
+        var path = Paths.get("C:\\Users\\water\\Downloads\\rawr");
 
         var paths = Files.walk(path, 0).flatMap(x -> {
             try {
@@ -40,7 +46,7 @@ public class IMCT {
 
         int size = paths.size();
 
-        for (int i = 400; i < size; i++) {
+        for (int i = 0; i < size; i++) {
             var p = paths.get(i);
             System.out.println((i+1) + "/" + (size) + " Processing " + p.toString());
             try {
@@ -49,6 +55,8 @@ public class IMCT {
                 e.printStackTrace();
             }
         }
+
+        ImageDisplayComponent.dispose();
 
 //        write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0006\\pm0006_00_00"));
 //        GlbWriter.write(new SWSHModel(Paths.get("F:\\PokemonModels\\SWSH\\pm0006_81_00")), Paths.get("output/SwordShield.glb"));

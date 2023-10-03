@@ -154,11 +154,11 @@ public class LAModel extends Model {
                 textures.add(new ApiTexture(rawTexture.propertyBinding(), modelDir.resolve(rawTexture.textureFile().replace(".bntx", ".png")).toAbsolutePath().toString()));
             }
 
-            this.materials.put(materialName, new ApiMaterial(
-                    materialName,
-                    textures,
-                    properties
-            ));
+//            this.materials.put(materialName, new ApiMaterial(
+//                    materialName,
+//                    textures,
+//                    properties
+//            ));
         }
 
         // Process mesh data
@@ -272,8 +272,8 @@ public class LAModel extends Model {
                 for (int j = 0; j < info.subMeshesLength(); j++) {
                     var subMesh = info.subMeshes(j);
                     var subIdxBuffer = indices.subList((int) subMesh.indexOffset(), (int) (subMesh.indexOffset() + subMesh.indexCount()));
-                    if (!Objects.requireNonNull(info.meshName()).contains("lod"))
-                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.material(), this.materials.get(subMesh.material()), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
+//                    if (!Objects.requireNonNull(info.meshName()).contains("lod"))
+//                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.material(), this.materials.get(subMesh.material()), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
                 }
             }
         }
@@ -358,7 +358,7 @@ public class LAModel extends Model {
     @Override
     protected void processEyes(Path modelDir) {
         materials.forEach((key, value) -> {
-            value.properties().forEach((k, v) -> System.out.println(k + " -> " + v));
+//            value.properties().forEach((k, v) -> System.out.println(k + " -> " + v));
 
 //            if(value.properties().get("shader").equals("Eye")) {
 //                EyeTextureGenerator.displayImage(ARCEUS.update(value, modelDir), key);

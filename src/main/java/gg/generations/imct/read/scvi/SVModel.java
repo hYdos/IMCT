@@ -16,11 +16,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.function.Consumer;
+
+import static gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator.displayImage;
 
 public class SVModel extends Model {
 
-    public SVModel(Path modelDir) {
+    public SVModel(Path modelDir, Path targetDir) {
         // Read Data
         var meshInfo = new ArrayList<TRMSH>();
         var meshData = new ArrayList<TRMBF>();
@@ -115,49 +116,13 @@ public class SVModel extends Model {
         }
 
         // Process extra material variants (shiny)
-        //var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
+        var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
+        processMaterials(extraMaterials.name(), modelDir, TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(extraMaterials.materialName(0), "Material name was null")))));
+
 
         // Process material data
         var materials = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
-        for (int i = 0; i < materials.materialsLength(); i++) {
-            var properties = new HashMap<String, Object>();
-            var material = materials.materials(i);
-            var textures = new ArrayList<ApiTexture>();
-            var materialName = material.name();
-            var shader = Objects.requireNonNull(material.shaders(0).shaderName(), "Null shader name");
-            properties.put("shader", shader);
-
-            for (int j = 0; j < material.intParameterLength(); j++) {
-                var property = material.intParameter(j);
-                properties.put(property.intName(), property.intValue());
-            }
-
-            for (int j = 0; j < material.floatParameterLength(); j++) {
-                var property = material.floatParameter(j);
-                properties.put(property.floatName(), property.floatValue());
-            }
-
-            for (int j = 0; j < material.float4ParameterLength(); j++) {
-                var property = material.float4Parameter(j);
-                properties.put(property.colorName(), new Vector4f(property.colorValue().r(), property.colorValue().g(), property.colorValue().b(), property.colorValue().a()));
-            }
-
-            for (int j = 0; j < material.float4LightParameterLength(); j++) {
-                var property = material.float4LightParameter(j);
-                properties.put(property.colorName(), new Vector4f(property.colorValue().r(), property.colorValue().g(), property.colorValue().b(), property.colorValue().a()));
-            }
-
-            for (int j = 0; j < material.texturesLength(); j++) {
-                var rawTexture = material.textures(j);
-                textures.add(new ApiTexture(rawTexture.textureName(), modelDir.resolve(rawTexture.textureFile().replace(".bntx", ".png")).toAbsolutePath().toString()));
-            }
-
-            this.materials.put(materialName, new ApiMaterial(
-                    materialName,
-                    textures,
-                    properties
-            ));
-        }
+        processMaterials("regular", modelDir, materials);
 
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
@@ -275,40 +240,93 @@ public class SVModel extends Model {
                     var subMesh = info.materials(j);
                     var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
                     if (!Objects.requireNonNull(info.meshName()).contains("lod"))
-                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), this.materials.get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
+                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), this.materials.get("regular").get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
                 }
             }
 
         }
-        processEyes(modelDir);
+
+        this.materials.forEach((k, materials1) -> processEyes(k, materials1, modelDir, targetDir));
+
+        System.out.println();
+//        processEyes(modelDir);
+    }
+
+    private void processMaterials(String name, Path modelDir, TRMTR materials) {
+        var list = this.materials.computeIfAbsent(name, a -> new HashMap<>());
+
+        for (int i = 0; i < materials.materialsLength(); i++) {
+            var properties = new HashMap<String, Object>();
+            var material = materials.materials(i);
+            var textures = new ArrayList<ApiTexture>();
+            var materialName = material.name();
+            var shader = Objects.requireNonNull(material.shaders(0).shaderName(), "Null shader name");
+            properties.put("shader", shader);
+
+            for (int j = 0; j < material.intParameterLength(); j++) {
+                var property = material.intParameter(j);
+                properties.put(property.intName(), property.intValue());
+            }
+
+            for (int j = 0; j < material.floatParameterLength(); j++) {
+                var property = material.floatParameter(j);
+                properties.put(property.floatName(), property.floatValue());
+            }
+
+            for (int j = 0; j < material.float4ParameterLength(); j++) {
+                var property = material.float4Parameter(j);
+                properties.put(property.colorName(), new Vector4f(property.colorValue().r(), property.colorValue().g(), property.colorValue().b(), property.colorValue().a()));
+            }
+
+            for (int j = 0; j < material.float4LightParameterLength(); j++) {
+                var property = material.float4LightParameter(j);
+                properties.put(property.colorName(), new Vector4f(property.colorValue().r(), property.colorValue().g(), property.colorValue().b(), property.colorValue().a()));
+            }
+
+            for (int j = 0; j < material.texturesLength(); j++) {
+                var rawTexture = material.textures(j);
+                textures.add(new ApiTexture(rawTexture.textureName(), modelDir.resolve(rawTexture.textureFile().replace(".bntx", ".png")).toAbsolutePath().toString()));
+            }
+
+            list.put(materialName, new ApiMaterial(
+                    materialName,
+                    textures,
+                    properties
+            ));
+        }
     }
 
     private static EyeGraph SV_EYE = new EyeGraph(256);
 
     private static FIreGraph SV_FIRE = new FIreGraph(256);
 
-    protected void processEyes(Path modelDir) {
+    protected void processEyes(String k, Map<String, ApiMaterial> materials, Path modelDir, Path targetDir) {
         var left_eye = materials.remove("l_eye");
+        if(left_eye == null) materials.remove("left_eye");
 
         var right_eye = materials.remove("r_eye");
+        if(right_eye == null) materials.remove("right_eye");
 
         if(left_eye == null) return;
 
-        EyeTextureGenerator.generate(SV_EYE.update(left_eye, modelDir), "eyes");
+        var name = k.equals("rare") ? "shiny_" : "";
 
-        var eyes = new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", Path.of("eyes.png").toAbsolutePath().toString())), new HashMap<>());
-
+        var eyes = new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", modelDir.resolve(name + "eyes.png").toAbsolutePath().toString())), new HashMap<>());
+        var image = SV_EYE.update(left_eye, modelDir);
+        EyeTextureGenerator.generate(image, targetDir.resolve(name + "eyes").toAbsolutePath().toString());
         materials.put("eyes", eyes);
 
         List<Mesh> listToConvert = new ArrayList<>();
 
-        var fire = materials.get("fire");
+        var fire = materials.remove("fire");
 
         if(fire != null) {
-            EyeTextureGenerator.generate(SV_FIRE.update(fire, modelDir), "fire");
-            fire = new ApiMaterial("fire", List.of(new ApiTexture("BaseColorMap", Path.of("fire.png").toAbsolutePath().toString())), new HashMap<>());
+            EyeTextureGenerator.generate(SV_FIRE.update(fire, modelDir), targetDir.resolve(name + "fire").toAbsolutePath().toString());
+            fire = new ApiMaterial("fire", List.of(new ApiTexture("BaseColorMap", modelDir.resolve(name + "fire.png").toAbsolutePath().toString())), new HashMap<>());
             materials.put("fire", fire);
         }
+
+        if(k.equals("rare")) return;
 
         for (Mesh mesh : meshes) {
             if(mesh.material().name().endsWith("_eye") || mesh.material().name().equals("fire")) {
@@ -321,16 +339,6 @@ public class SVModel extends Model {
             meshes.add(newMesh);
             meshes.remove(mesh);
         }
-
-        var map = findTexturePairs(modelDir);
-
-
-        materials.forEach((key, value) -> {
-            var shinyMaterial = value.with(map);
-            if(shinyMaterial != null) {
-                shinyMaterials.put(key, shinyMaterial);
-            }
-        });
     }
 
     public static Map<String, String> findTexturePairs(Path directoryPath) {

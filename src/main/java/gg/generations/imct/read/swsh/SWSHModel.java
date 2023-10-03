@@ -126,11 +126,11 @@ public class SWSHModel extends Model {
             }
 
             materialIds.put(i, materialName);
-            materials.put(materialName, new ApiMaterial(
-                    materialName,
-                    textures,
-                    properties
-            ));
+//            materials.put(materialName, new ApiMaterial(
+//                    materialName,
+//                    textures,
+//                    properties
+//            ));
         }
 
         for (int i = 0; i < gfbmdl.groupsLength(); i++) {
@@ -239,7 +239,7 @@ public class SWSHModel extends Model {
                 var mesh = meshGroup.polygons(j);
                 var indices = new ArrayList<Integer>();
                 for (var idx = 0; idx < mesh.facesLength(); idx++) indices.add(mesh.faces(idx));
-                meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get(idToName(mesh.materialIndex())), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
+//                meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get(idToName(mesh.materialIndex())), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
             }
         }
     }

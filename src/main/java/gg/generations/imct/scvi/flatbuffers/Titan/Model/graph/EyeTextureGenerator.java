@@ -192,11 +192,21 @@ public class EyeTextureGenerator {
         return new BufferedImage(colorModel, rasters, false, null);
     }
 
-    // Method to load an image into BufferedImage
     public static BufferedImage loadImage(String imagePath) {
+        return loadImage(new File(imagePath));
+    }
+
+    public static BufferedImage loadImage(Path imagePath) {
+        return loadImage(imagePath.toFile());
+    }
+
+    // Method to load an image into BufferedImage
+    public static BufferedImage loadImage(File imagePath) {
         try {
-            return ImageIO.read(new File(imagePath));
+            return ImageIO.read(imagePath);
         } catch (IOException e) {
+            System.out.println(":O " + imagePath);
+            e.printStackTrace();
             return null;
         }
     }

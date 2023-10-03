@@ -15,8 +15,12 @@ import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.api.ApiTexture;
 import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
+import gg.generations.imct.read.scvi.ImageDisplayComponent;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
 import org.joml.Matrix4f;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
 import java.io.IOException;
 import java.nio.FloatBuffer;
 import java.nio.file.CopyOption;
@@ -26,8 +30,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -45,27 +48,16 @@ public class GlbWriter {
         }
     }
 
-    public static <T extends Model> void write(Path input, Function<Path, T> function, Path path) {
-        write(function.apply(input), input, path);
+    public static <T extends Model> void write(Path input, BiFunction<Path, Path, T> function, Path path) {
+        write(function.apply(input, path), input, path);
     }
 
     public static void write(Model model, Path input, Path path) {
         try {
             Files.createDirectories(path.getParent());
             var sceneModel = new DefaultSceneModel();
-//            var sceneMaterials = new HashMap<ApiMaterial, MaterialModelV2>();
-//
-//            for (var value : model.materials.values()) {
-//                var material = MaterialBuilder.create()
-//                        .setBaseColorTexture(Path.of(value.getTexture("BaseColorMap").filePath()).toUri().toString(), "image/png", 0)
-//                        .setDoubleSided(true)
-//                        .build();
-//                material.setName(value.name());
-//
-//                sceneMaterials.put(value, material);
-//            }
 
-            Stream.of(model.materials, model.shinyMaterials).flatMap(a -> a.entrySet().stream()).map(Map.Entry::getValue).map(a -> a.getTexture("BaseColorMap")).map(ApiTexture::filePath).map(Path::of).forEach(s -> {
+            model.materials.values().stream().flatMap(a -> a.entrySet().stream()).map(Map.Entry::getValue).filter(apiMaterial -> !(apiMaterial.name().contains("eyes") || apiMaterial.name().contains("fire"))).map(a -> a.getTexture("BaseColorMap")).map(ApiTexture::filePath).map(Path::of).forEach(s -> {
                 copy(s, path);
             });
 
@@ -115,7 +107,12 @@ public class GlbWriter {
 
             var scale = 1f/(max - min);
 
-            Files.writeString(path.resolve("config.json"), generateJson(scale, model.materials, model.shinyMaterials, model.meshes));
+            checkShiny("eyes", model, path);
+            checkShiny("fire", model, path);
+
+
+
+            Files.writeString(path.resolve("config.json"), generateJson(scale, model.materials, model.meshes));
 
             // Pass the scene to the model builder. It will take care
             // of the other model elements that are contained in the scene.
@@ -145,16 +142,35 @@ public class GlbWriter {
         }
     }
 
-    private static String generateJson(double scale, Map<String, ApiMaterial> materials, Map<String, ApiMaterial> shinyMaterials, List<Mesh> meshes) {
+    private static void checkShiny(String name, Model model, Path path) {
+        var regular = model.materials.get("regular").get(name);
+        var shiny = model.materials.get("rare").get(name);
+
+        if(regular != null && shiny != null) {
+            Path regularPath = path.resolve(Path.of(regular.getTexture("BaseColorMap").filePath()).getFileName());
+            Path shinyPath = path.resolve(Path.of(shiny.getTexture("BaseColorMap").filePath()).getFileName());
+
+            if(!ImageDisplayComponent.compare(EyeTextureGenerator.loadImage(regularPath), EyeTextureGenerator.loadImage(shinyPath))) {
+                model.materials.get("rare").remove(shiny);
+
+                try {
+                    Files.delete(shinyPath);
+                } catch (IOException e) {
+                }
+
+            }
+        }
+
+    }
+
+    private static String generateJson(double scale, Map<String, Map<String, ApiMaterial>> materials, List<Mesh> meshes) {
         var materialsJson = new HashMap<ApiMaterial, String>();
 
-        materials.forEach((key, value) -> {
-            materialsJson.put(value, key);
-        });
 
-        shinyMaterials.forEach((key, value) -> {
-            materialsJson.put(value, "shiny_" + key);
-        });
+
+        materials.forEach((type, materialMap) -> materialMap.forEach((s, apiMaterial) -> {
+            materialsJson.put(apiMaterial, (type.equals("rare") ? "shiny_" : "") + s);
+        }));
 
         var meshMap = new HashMap<String, String>();
         var shinyMap = new HashMap<String, String>();
@@ -170,36 +186,37 @@ public class GlbWriter {
         builder.append("  \"scale\": %s,".formatted(scale)).append("\n");
         builder.append("  \"materials\": {").append("\n");
 
-        builder.append(materialsJson.entrySet().stream().map(a -> {
+        builder.append(String.join(",\n", materialsJson.entrySet().stream().map(a -> {
             String s = "    \"%s\": {\n".formatted(a.getValue());
-                  s += "      \"type\": \"solid\",\n";
-                  s += "      \"texture\": \"%s\"\n".formatted(Path.of(a.getKey().getTexture("BaseColorMap").filePath()).getFileName().toString());
-                  s += "    }";
-                  return s;
-        }).collect(Collectors.toSet()).stream().collect(Collectors.joining(",\n"))).append("\n");
+            s += "      \"type\": \"solid\",\n";
+            s += "      \"texture\": \"%s\"\n".formatted(Path.of(a.getKey().getTexture("BaseColorMap").filePath()).getFileName().toString());
+            s += "    }";
+            return s;
+        }).collect(Collectors.toSet()))).append("\n");
 
         builder.append("  },").append("\n");
         builder.append("  \"defaultVariant\": {").append("\n");
-        builder.append(meshMap.entrySet().stream().map(a -> {
+        builder.append(String.join(",\n", meshMap.entrySet().stream().map(a -> {
             String s = "    \"%s\": {\n".formatted(a.getKey());
             s += "      \"material\": \"%s\",\n".formatted(a.getValue());
             s += "      \"hide\": \"false\"\n";
             s += "    }";
             return s;
-        }).collect(Collectors.toSet()).stream().collect(Collectors.joining(",\n"))).append("\n");
+        }).collect(Collectors.toSet()))).append("\n");
         builder.append("  },").append("\n");
         builder.append("  \"variants\": {").append("\n");
         builder.append("    \"normal\": {},").append("\n");
         builder.append("    \"shiny\": {").append("\n");
-        builder.append(shinyMap.entrySet().stream().map(a -> {
+        builder.append(String.join("\n      },\n", shinyMap.entrySet().stream().map(a -> {
             String s = "      \"%s\": {\n".formatted(a.getKey());
-                  s += "        \"material\": \"%s\"".formatted(a.getValue());
+            s += "        \"material\": \"%s\"".formatted(a.getValue());
             return s;
-        }).collect(Collectors.toSet()).stream().collect(Collectors.joining("\n      },\n"))).append("\n");
+        }).collect(Collectors.toSet()))).append("\n");
         builder.append("      }").append("\n");
         builder.append("    }").append("\n");
         builder.append("  }").append("\n");
         builder.append("}");
+
 
         return builder.toString();
 
