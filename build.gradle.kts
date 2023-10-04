@@ -18,7 +18,10 @@ dependencies {
     implementation("org.apache.commons", "commons-compress", "1.24.0")
 
     implementation("de.javagl:jgltf-model:2.0.4-SNAPSHOT")
-    implementation("de.javagl:jgltf-model-builder:2.0.4-SNAPSHOT")
+
+    implementation(fileTree("libs") {
+        include("*.jar")
+    })
 
     implementation("net.imagej:ij:1.54f")
 
