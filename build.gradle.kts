@@ -19,6 +19,8 @@ dependencies {
 
     implementation("de.javagl:jgltf-model:2.0.4-SNAPSHOT")
 
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+
     implementation(fileTree("libs") {
         include("*.jar")
     })
