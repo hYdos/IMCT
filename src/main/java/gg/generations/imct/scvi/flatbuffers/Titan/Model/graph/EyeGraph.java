@@ -13,6 +13,7 @@ import org.joml.Vector4f;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
@@ -82,7 +83,15 @@ public class EyeGraph {
     public BufferedImage update(ApiMaterial material, Path modelDir) {
         alb.setImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_alb.png"));
         lym.setImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_lym.png"));
-        mask.setImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_msk.png"));
+
+
+        var path = modelDir.resolve(modelDir.getFileName().toString() + "_eye_msk.png");
+
+        if(Files.notExists(path)) {
+            path = modelDir.resolve(modelDir.getFileName().toString() + "_r_eye_msk.png");
+        }
+
+        mask.setImage(path);
 
         if(material.properties().get("BaseColorLayer1") instanceof Vector4f vec) baseColor1.setColor(vec.x, vec.y, vec.z, vec.w);
         else baseColor1.resetColor();

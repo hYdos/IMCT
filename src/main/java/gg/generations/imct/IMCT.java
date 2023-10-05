@@ -1,17 +1,17 @@
 package gg.generations.imct;
 
-import gg.generations.imct.read.la.LAModel;
-import gg.generations.imct.read.scvi.ImageDisplayComponent;
 import gg.generations.imct.read.scvi.SVModel;
-import gg.generations.imct.read.swsh.SWSHModel;
 import gg.generations.imct.write.GlbWriter;
 import nu.pattern.OpenCV;
 
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.stream.Stream;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.BiFunction;
 
 public class IMCT {
 
@@ -22,12 +22,12 @@ public class IMCT {
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0004\\pm0004_00_00"), SVModel::new, Paths.get("output/0004"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0005\\pm0005_00_00"), SVModel::new, Paths.get("output/0005"));
 
-//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0048_00_00\\pm0048_00_00"), SVModel::new, Paths.get("output\\blep\\pm0048_00_01"));
+//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\batch\\pm0004\\pm0004_00_00"), SVModel::new, Paths.get("output\\blep\\pm0040_00_01"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_01_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_11_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_11_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_01_00"));
 
 
-        var path = Paths.get("C:\\Users\\water\\Downloads\\rawr");
+        var path = Paths.get("C:\\Users\\water\\Downloads\\batch");
 
         var paths = Files.walk(path, 0).flatMap(x -> {
             try {
@@ -46,17 +46,16 @@ public class IMCT {
 
         int size = paths.size();
 
-        for (int i = 0; i < size; i++) {
-            var p = paths.get(i);
-            System.out.println((i+1) + "/" + (size) + " Processing " + p.toString());
+        executeSequentially(paths, (p, i) -> () -> {
+            System.out.println((i + 1) + "/" + (size) + " Processing " + p.toString());
             try {
                 write(p);
             } catch (RuntimeException e) {
                 e.printStackTrace();
             }
-        }
+        }, 0).join();
 
-        ImageDisplayComponent.dispose();
+        System.out.println("Tasks Complete.");
 
 //        write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0006\\pm0006_00_00"));
 //        GlbWriter.write(new SWSHModel(Paths.get("F:\\PokemonModels\\SWSH\\pm0006_81_00")), Paths.get("output/SwordShield.glb"));
@@ -70,11 +69,11 @@ public class IMCT {
     public static void write(Path path) {
         var oput = Paths.get("output/" + path.getFileName().toString());
         GlbWriter.write(path, SVModel::new, oput);
-        try {
-            deleteFolder(oput);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+//        try {
+//            deleteFolder(oput);
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
     }
 
     public static void deleteFolder(Path folderPath) throws IOException {
@@ -103,5 +102,18 @@ public class IMCT {
                         }
                     }
                 });
+    }
+
+    private static CompletableFuture<Void> executeSequentially(List<Path> tasks, BiFunction<Path, Integer, Runnable> function, int index) {
+        var futureFunction = function;
+
+        CompletableFuture<Void> resultFuture = CompletableFuture.completedFuture(null);
+
+
+        for (int i = 0; i < tasks.size(); i++) {
+            resultFuture = resultFuture.thenRun(futureFunction.apply(tasks.get(i), i));
+        }
+
+        return resultFuture;
     }
 }

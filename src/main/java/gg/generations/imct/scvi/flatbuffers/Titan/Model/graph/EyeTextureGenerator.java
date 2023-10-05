@@ -13,6 +13,7 @@ import java.awt.image.ColorModel;
 import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 
@@ -205,8 +206,8 @@ public class EyeTextureGenerator {
         try {
             return ImageIO.read(imagePath);
         } catch (IOException e) {
-            System.out.println(":O " + imagePath);
-            e.printStackTrace();
+//            System.out.println(":O " + imagePath);
+//            e.printStackTrace();
             return null;
         }
     }
@@ -220,11 +221,20 @@ public class EyeTextureGenerator {
         }
     }
 
-    public static void generate(BufferedImage image, String name) {
+    public static void generate(BufferedImage image, Path path) {
         try {
-            ImageIO.write(image, "PNG", new File(name + ".png"));
+            if (!Files.exists(path.getParent())) {
+                Files.createDirectories(path.getParent());
+            }
+
+            if (!Files.exists(path)) {
+                Files.createFile(path);
+            }
+
+            ImageIO.write(image, "png", path.toFile());
         } catch (IOException | IllegalArgumentException e) {
-            System.out.println("Failed to display: " + name);
+            System.out.println("Failed to generate: " + path);
+            e.printStackTrace();
         }
     }
 

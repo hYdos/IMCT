@@ -313,7 +313,7 @@ public class SVModel extends Model {
 
         var eyes = new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", modelDir.resolve(name + "eyes.png").toAbsolutePath().toString())), new HashMap<>());
         var image = SV_EYE.update(left_eye, modelDir);
-        EyeTextureGenerator.generate(image, targetDir.resolve(name + "eyes").toAbsolutePath().toString());
+        EyeTextureGenerator.generate(image, targetDir.resolve(name + "eyes.png").toAbsolutePath());
         materials.put("eyes", eyes);
 
         List<Mesh> listToConvert = new ArrayList<>();
@@ -321,7 +321,7 @@ public class SVModel extends Model {
         var fire = materials.remove("fire");
 
         if(fire != null) {
-            EyeTextureGenerator.generate(SV_FIRE.update(fire, modelDir), targetDir.resolve(name + "fire").toAbsolutePath().toString());
+            EyeTextureGenerator.generate(SV_FIRE.update(fire, modelDir), targetDir.resolve(name + "fire.png").toAbsolutePath());
             fire = new ApiMaterial("fire", List.of(new ApiTexture("BaseColorMap", modelDir.resolve(name + "fire.png").toAbsolutePath().toString())), new HashMap<>());
             materials.put("fire", fire);
         }

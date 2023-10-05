@@ -3,14 +3,12 @@ package gg.generations.imct.write;
 import de.javagl.jgltf.model.GltfConstants;
 import de.javagl.jgltf.model.creation.AccessorModels;
 import de.javagl.jgltf.model.creation.GltfModelBuilder;
-import de.javagl.jgltf.model.creation.MaterialBuilder;
 import de.javagl.jgltf.model.impl.DefaultMeshModel;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import de.javagl.jgltf.model.impl.DefaultSceneModel;
 import de.javagl.jgltf.model.impl.DefaultSkinModel;
 import de.javagl.jgltf.model.io.Buffers;
 import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
-import de.javagl.jgltf.model.v2.MaterialModelV2;
 import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.api.ApiTexture;
 import gg.generations.imct.api.Mesh;
@@ -19,20 +17,17 @@ import gg.generations.imct.read.scvi.ImageDisplayComponent;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
 import org.joml.Matrix4f;
 
-import javax.imageio.ImageIO;
-import java.awt.*;
 import java.io.IOException;
 import java.nio.FloatBuffer;
-import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class GlbWriter {
 
@@ -107,8 +102,7 @@ public class GlbWriter {
 
             var scale = 1f/(max - min);
 
-            checkShiny("eyes", model, path);
-            checkShiny("fire", model, path);
+            CompletableFuture.completedFuture(null).thenRun(checkShiny("eyes", model, path)).thenRun(checkShiny("fire", model, path)).join();
 
 
 
@@ -142,25 +136,28 @@ public class GlbWriter {
         }
     }
 
-    private static void checkShiny(String name, Model model, Path path) {
-        var regular = model.materials.get("regular").get(name);
-        var shiny = model.materials.get("rare").get(name);
+    private static Runnable checkShiny(String name, Model model, Path path) {
+        return () -> {
+            var regular = model.materials.get("regular").get(name);
+            var shiny = model.materials.get("rare").get(name);
 
-        if(regular != null && shiny != null) {
-            Path regularPath = path.resolve(Path.of(regular.getTexture("BaseColorMap").filePath()).getFileName());
-            Path shinyPath = path.resolve(Path.of(shiny.getTexture("BaseColorMap").filePath()).getFileName());
+            if (regular != null && shiny != null) {
+                Path regularPath = path.resolve(Path.of(regular.getTexture("BaseColorMap").filePath()).getFileName());
+                Path shinyPath = path.resolve(Path.of(shiny.getTexture("BaseColorMap").filePath()).getFileName());
 
-            if(!ImageDisplayComponent.compare(EyeTextureGenerator.loadImage(regularPath), EyeTextureGenerator.loadImage(shinyPath))) {
-                model.materials.get("rare").remove(shiny);
+                ImageDisplayComponent.Proxy.compare(EyeTextureGenerator.loadImage(regularPath), EyeTextureGenerator.loadImage(shinyPath)).thenAccept(aBoolean -> {
+                    if (!aBoolean) {
+                        model.materials.get("rare").remove(name);
 
-                try {
-                    Files.delete(shinyPath);
-                } catch (IOException e) {
-                }
+                        try {
+                            Files.delete(shinyPath);
+                        } catch (IOException e) {
+                        }
 
+                    }
+                }).join();
             }
-        }
-
+        };
     }
 
     private static String generateJson(double scale, Map<String, Map<String, ApiMaterial>> materials, List<Mesh> meshes) {

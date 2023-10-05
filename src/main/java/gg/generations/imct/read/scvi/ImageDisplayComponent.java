@@ -5,11 +5,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.ComponentEvent;
-import java.awt.event.ComponentListener;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
 
 public class ImageDisplayComponent extends Component {
     private final int IMAGE_WIDTH = 256;
@@ -38,92 +37,76 @@ public class ImageDisplayComponent extends Component {
         if (rightImage != null) g.drawImage(rightImage, IMAGE_WIDTH, 0, IMAGE_WIDTH, IMAGE_WIDTH, null);
     }
 
-    private static final JFrame frame;
+    public static class Proxy extends Frame {
+        private final ImageDisplayComponent component;
+        private final JFrame frame;
 
-    private static final ImageDisplayComponent component;
+        private volatile Boolean response = null;
 
-    private static volatile Boolean response = null;
+        public Proxy(BufferedImage left, BufferedImage right, CompletableFuture<Boolean> resultFuture) {
+            frame = new JFrame("Image Display Test");
 
-    static {
-        frame = new JFrame("Image Display Test");
+            // Create a panel to hold the component and buttons
+            JPanel panel = new JPanel(new BorderLayout());
 
-        // Create a panel to hold the component and buttons
-        JPanel panel = new JPanel(new BorderLayout());
+            // Create the ImageDisplayComponent
+            component = new ImageDisplayComponent();
+            component.setImages(left, right);
 
-        // Create the ImageDisplayComponent
-        component = new ImageDisplayComponent();
+            // Create two buttons
+            JButton button1 = new JButton("Same");
+            JButton button2 = new JButton("Different");
 
-//        // Load two images from Paths
-//        Path leftImagePath = Path.of("C:\\Users\\water\\Downloads\\20469810.png");
-//        Path rightImagePath = Path.of("C:\\Users\\water\\Downloads\\Ho-oh 11.png");
-//
-//        BufferedImage leftImage = loadImageFromPath(leftImagePath);
-//        BufferedImage rightImage = loadImageFromPath(rightImagePath);
+            button2.addActionListener(e -> {
+                resultFuture.complete(true);
+                frame.dispose();
+            });
 
-//        component.setImages(leftImage, rightImage);
+            button1.addActionListener(e -> {
+                resultFuture.complete(false);
+                frame.dispose();
+            });
 
-        // Create two buttons
-        JButton button1 = new JButton("Same");
-        JButton button2 = new JButton("Different");
+            // Add the component and buttons to the panel
+            panel.add(component, BorderLayout.CENTER);
 
-        button2.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                response = true;
-                frame.setVisible(false);
-            }
-        });
+            // Create another panel for the buttons
+            JPanel buttonPanel = new JPanel();
+            buttonPanel.add(button1);
+            buttonPanel.add(button2);
 
-        button1.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                response = false;
-                frame.setVisible(false);
-            }
-        });
+            // Add the button panel to the panel at the SOUTH position
+            panel.add(buttonPanel, BorderLayout.SOUTH);
 
-        // Add the component and buttons to the panel
-        panel.add(component, BorderLayout.CENTER);
-
-        // Create another panel for the buttons
-        JPanel buttonPanel = new JPanel();
-        buttonPanel.add(button1);
-        buttonPanel.add(button2);
-
-        // Add the button panel to the panel at the SOUTH position
-        panel.add(buttonPanel, BorderLayout.SOUTH);
-
-        frame.add(panel);
-        frame.setSize(512, 320); // Adjust the frame size to accommodate buttons
-//        frame.setVisible(true);
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-    }
-
-    public static boolean compare(BufferedImage left, BufferedImage right) {
-        component.setImages(left, right);
-        frame.setVisible(true);
-
-        while (response == null) {
-            Thread.onSpinWait();
+            frame.add(panel);
+            frame.setSize(512, 320); // Adjust the frame size to accommodate buttons
+            frame.setVisible(true);
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         }
 
-        return response;
-    }
+        public static CompletableFuture<Boolean> compare(BufferedImage left, BufferedImage right) {
 
-    public static void main(String[] args) {
-        System.out.println("Rawr: " + compare(null, null));
-    }
+            if(right == null) {
+                return CompletableFuture.completedFuture(true);
+            }
+            CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
 
-    public static BufferedImage loadImageFromPath(Path imagePath) {
-        try {
-            return ImageIO.read(imagePath.toFile());
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
+            var proxy = new Proxy(left, right, resultFuture);
+
+            return resultFuture;
         }
-    }
 
-    public static void dispose() {
-        frame.dispose();
+        public static void main(String[] args) {
+            System.out.println("Rawr: " + compare(null, null));
+        }
+
+        public static BufferedImage loadImageFromPath(Path imagePath) {
+            try {
+                return ImageIO.read(imagePath.toFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
     }
 }
