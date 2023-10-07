@@ -3,12 +3,12 @@ package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.BaseNode;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.InputNode;
 
-import java.awt.*;
 import java.awt.image.BufferedImage;
 
 public class MaskNode extends BaseNode {
     private InputNode mask = DEFAULT;
     public int red = 255, green = 255, blue = 255;
+    private double alphaIntensity = 1.0;
 
     public MaskNode setColor(int red, int green, int blue) {
         this.red = red;
@@ -18,7 +18,13 @@ public class MaskNode extends BaseNode {
         return this;
     }
 
-    public MaskNode setColor(float red, float green, float blue, float alpha) {
+    public MaskNode setIntensity(double alphaIntensity) {
+        this.alphaIntensity = alphaIntensity;
+        update();
+        return this;
+    }
+
+    public MaskNode setColor(float red, float green, float blue) {
         return setColor((int) (red * 255), (int) (green * 255), (int) (blue * 255));
     }
 
@@ -44,9 +50,18 @@ public class MaskNode extends BaseNode {
         for (int x = 0; x < original.getWidth(); x++) {
             for (int y = 0; y < original.getWidth(); y++) {
                 var pixel = original.getRGB(x, y);
-                var newPixel = (((pixel >> 24) & 0xff) << 24) | (red << 16) | (green << 8) | blue;
+                var newPixel = ((alphaPercentage(pixel >> 24, alphaIntensity) & 0xff) << 24) | (red << 16) | (green << 8) | blue;
                 image.setRGB(x,y, newPixel);
             }
         }
+    }
+
+    public static int alphaPercentage(int alpha, double percentage) {
+        percentage = Math.max(0.0, Math.min(1.0, percentage));
+        return (int) Math.round(alpha * percentage);
+    }
+
+    public void resetIntensity() {
+        alphaIntensity = 0.0;
     }
 }

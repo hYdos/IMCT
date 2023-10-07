@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Objects;
 
 public class EyeTextureGenerator {
@@ -121,6 +122,11 @@ public class EyeTextureGenerator {
         graphic.dispose();
 
         return target;
+    }
+
+    public static void copy(Path from, Path to) throws IOException {
+        Files.copy(from, to, StandardCopyOption.REPLACE_EXISTING);
+//        System.out.println("Copied: " + from  + " -> " + );
     }
 
     public interface Operation {

@@ -78,24 +78,24 @@ public class BodyGraph {
         lymSplit.getAlphaChannel().getInputData();
 
         if (material.properties().get("BaseColorLayer1") instanceof Vector4f vec)
-            baseColor1.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
+            baseColor1.setColor(vec.x, vec.y, vec.z).getInputData();
         if (material.properties().get("BaseColorLayer2") instanceof Vector4f vec)
-            baseColor2.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
+            baseColor2.setColor(vec.x, vec.y, vec.z).getInputData();
         if (material.properties().get("BaseColorLayer3") instanceof Vector4f vec)
-            baseColor3.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
+            baseColor3.setColor(vec.x, vec.y, vec.z).getInputData();
         if (material.properties().get("BaseColorLayer4") instanceof Vector4f vec)
-            baseColor4.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
+            baseColor4.setColor(vec.x, vec.y, vec.z).getInputData();
 
         if (material.properties().get("EmissionColorLayer1") instanceof Vector4f vec)
-            emissionColor1.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
+            emissionColor1.setColor(vec.x, vec.y, vec.z).getInputData();
         if (material.properties().get("EmissionColorLayer2") instanceof Vector4f vec)
-            emissionColor2.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
+            emissionColor2.setColor(vec.x, vec.y, vec.z).getInputData();
         if (material.properties().get("EmissionColorLayer3") instanceof Vector4f vec)
-            emissionColor3.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
+            emissionColor3.setColor(vec.x, vec.y, vec.z).getInputData();
         if (material.properties().get("EmissionColorLayer4") instanceof Vector4f vec)
-            emissionColor4.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
+            emissionColor4.setColor(vec.x, vec.y, vec.z).getInputData();
         if (material.properties().get("EmissionColorLayer5") instanceof Vector4f vec)
-            emissionColor5.setColor(vec.x, vec.y, vec.z, vec.w).getInputData();
+            emissionColor5.setColor(vec.x, vec.y, vec.z).getInputData();
 
         return output.get();
     }

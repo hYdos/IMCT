@@ -12,7 +12,8 @@ public record ApiMaterial(
 
     public ApiTexture getTexture(String type) {
         for (var texture : textures) if (texture.type().endsWith(type)) return texture;
-        throw new RuntimeException("Texture of type " + type + " doesn't exist");
+        return null;
+//        throw new RuntimeException("Texture of type " + type + " doesn't exist");
     }
 
     public String getShader() {

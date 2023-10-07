@@ -1,10 +1,8 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph;
 
 import gg.generations.imct.api.ApiMaterial;
-import gg.generations.imct.api.Model;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.composite.Composites;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.BaseNode;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.ChangeListener;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.ChannelSplitterNode;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.CompositeNode;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.InputNode;
@@ -81,8 +79,8 @@ public class EyeGraph {
     }
 
     public BufferedImage update(ApiMaterial material, Path modelDir) {
-        alb.setImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_alb.png"));
-        lym.setImage(modelDir.resolve(modelDir.getFileName().toString() + "_eye_lym.png"));
+        alb.setImage(Path.of(material.getTexture("BaseColorMap").filePath()));
+        lym.setImage(Path.of(material.getTexture("LayerMaskMap").filePath()));
 
 
         var path = modelDir.resolve(modelDir.getFileName().toString() + "_eye_msk.png");
@@ -93,24 +91,35 @@ public class EyeGraph {
 
         mask.setImage(path);
 
-        if(material.properties().get("BaseColorLayer1") instanceof Vector4f vec) baseColor1.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("BaseColorLayer1") instanceof Vector4f vec) baseColor1.setColor(vec.x, vec.y, vec.z);
         else baseColor1.resetColor();
-        if(material.properties().get("BaseColorLayer2") instanceof Vector4f vec) baseColor2.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("BaseColorLayer2") instanceof Vector4f vec) baseColor2.setColor(vec.x, vec.y, vec.z);
         else baseColor2.resetColor();
-        if(material.properties().get("BaseColorLayer3") instanceof Vector4f vec) baseColor3.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("BaseColorLayer3") instanceof Vector4f vec) baseColor3.setColor(vec.x, vec.y, vec.z);
         else baseColor3.resetColor();
-        if(material.properties().get("BaseColorLayer4") instanceof Vector4f vec) baseColor4.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("BaseColorLayer4") instanceof Vector4f vec) baseColor4.setColor(vec.x, vec.y, vec.z);
         else baseColor4.resetColor();
 
-        if(material.properties().get("EmissionColorLayer1") instanceof Vector4f vec) emissionColor1.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("EmissionColorLayer1") instanceof Vector4f vec) emissionColor1.setColor(vec.x, vec.y, vec.z);
         else emissionColor1.resetColor();
-        if(material.properties().get("EmissionColorLayer2") instanceof Vector4f vec) emissionColor2.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("EmissionColorLayer2") instanceof Vector4f vec) emissionColor2.setColor(vec.x, vec.y, vec.z);
         else emissionColor2.resetColor();
-        if(material.properties().get("EmissionColorLayer3") instanceof Vector4f vec) emissionColor3.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("EmissionColorLayer3") instanceof Vector4f vec) emissionColor3.setColor(vec.x, vec.y, vec.z);
         else emissionColor3.resetColor();
-        if(material.properties().get("EmissionColorLayer4") instanceof Vector4f vec) emissionColor4.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("EmissionColorLayer4") instanceof Vector4f vec) emissionColor4.setColor(vec.x, vec.y, vec.z);
         else emissionColor4.resetColor();
-        if(material.properties().get("EmissionColorLayer5") instanceof Vector4f vec) emissionColor5.setColor(vec.x, vec.y, vec.z, vec.w);
+        if(material.properties().get("EmissionColorLayer5") instanceof Vector4f vec) emissionColor5.setColor(vec.x, vec.y, vec.z);
+        else emissionColor5.resetColor();
+
+        if(material.properties().get("EmissionIntensityLayer1") instanceof Vector4f vec) emissionColor1.setColor(vec.x, vec.y, vec.z);
+        else emissionColor1.resetColor();
+        if(material.properties().get("EmissionIntensityLayer1") instanceof Vector4f vec) emissionColor2.setColor(vec.x, vec.y, vec.z);
+        else emissionColor2.resetColor();
+        if(material.properties().get("EmissionIntensityLayer1") instanceof Vector4f vec) emissionColor3.setColor(vec.x, vec.y, vec.z);
+        else emissionColor3.resetColor();
+        if(material.properties().get("EmissionIntensityLayer1") instanceof Vector4f vec) emissionColor4.setColor(vec.x, vec.y, vec.z);
+        else emissionColor4.resetColor();
+        if(material.properties().get("EmissionIntensityLayer1") instanceof Vector4f vec) emissionColor5.setColor(vec.x, vec.y, vec.z);
         else emissionColor5.resetColor();
 
         return output.get();
@@ -143,7 +152,7 @@ public class EyeGraph {
     }
 
     public static MaskNode maskColor(InputNode mask, Color color) {
-        return new MaskNode().setMask(mask).setColor(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
+        return new MaskNode().setMask(mask).setColor(color.getRed(), color.getGreen(), color.getBlue());
     }
 
     public static class GrayScaleNode extends BaseNode {

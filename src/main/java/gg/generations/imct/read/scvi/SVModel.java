@@ -1,6 +1,9 @@
 package gg.generations.imct.read.scvi;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
+import gg.generations.imct.IMCT;
 import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.api.ApiTexture;
 import gg.generations.imct.api.Mesh;
@@ -12,16 +15,19 @@ import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.FIreGraph;
 import gg.generations.imct.util.TrinityUtils;
 import org.joml.*;
 
+import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.List;
 
 import static gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator.displayImage;
 
 public class SVModel extends Model {
 
-    public SVModel(Path modelDir, Path targetDir) {
+    public SVModel(Path modelDir, Path targetDir) throws IOException {
         // Read Data
         var meshInfo = new ArrayList<TRMSH>();
         var meshData = new ArrayList<TRMBF>();
@@ -75,6 +81,8 @@ public class SVModel extends Model {
             }
         }
 
+
+
         this.joints = new ArrayList<>(bones.stream().mapToInt(a -> a.rigIdx).max().getAsInt());
 
         // Second bone pass. Convert into skeleton
@@ -115,14 +123,19 @@ public class SVModel extends Model {
             parent.addChild(node);
         }
 
-        // Process extra material variants (shiny)
-        var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
-        processMaterials(extraMaterials.name(), modelDir, TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(extraMaterials.materialName(0), "Material name was null")))));
-
+        var materialRemap = new HashMap<String, String>();
 
         // Process material data
         var materials = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
-        processMaterials("regular", modelDir, materials);
+        processMaterials("regular", modelDir, targetDir, materials, materialRemap);
+
+        // Process extra material variants (shiny)
+        var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
+        processMaterials(extraMaterials.name(), modelDir, targetDir, TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(extraMaterials.materialName(0), "Material name was null")))), null);
+
+
+
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(new GsonBuilder().setPrettyPrinting().create().toJson(this.materials)), null);
 
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
@@ -239,20 +252,17 @@ public class SVModel extends Model {
                 for (int j = 0; j < info.materialsLength(); j++) {
                     var subMesh = info.materials(j);
                     var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
-                    if (!Objects.requireNonNull(info.meshName()).contains("lod"))
-                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), this.materials.get("regular").get(subMesh.materialName()), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
+                    if (!Objects.requireNonNull(info.meshName()).contains("lod")) {
+                        var name = materialRemap.getOrDefault(subMesh.materialName(), subMesh.materialName());
+                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), this.materials.get("regular").get(name), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
+                    }
                 }
             }
 
         }
-
-        this.materials.forEach((k, materials1) -> processEyes(k, materials1, modelDir, targetDir));
-
-        System.out.println();
-//        processEyes(modelDir);
     }
 
-    private void processMaterials(String name, Path modelDir, TRMTR materials) {
+    private void processMaterials(String name, Path modelDir, Path targetDir, TRMTR materials, Map<String, String> materialRemap) throws IOException {
         var list = this.materials.computeIfAbsent(name, a -> new HashMap<>());
 
         for (int i = 0; i < materials.materialsLength(); i++) {
@@ -288,24 +298,80 @@ public class SVModel extends Model {
                 textures.add(new ApiTexture(rawTexture.textureName(), modelDir.resolve(rawTexture.textureFile().replace(".bntx", ".png")).toAbsolutePath().toString()));
             }
 
-            list.put(materialName, new ApiMaterial(
-                    materialName,
-                    textures,
-                    properties
-            ));
+            ApiMaterial mat = new ApiMaterial(
+                            materialName,
+                            textures,
+                            properties
+                    );
+
+            var name1 = name.equals("rare") ? "shiny_" : "";
+
+            switch (shader) {
+                case "Eye":
+                case "EyeClearCoat":
+                    ApiMaterial eyes;
+
+                    if(!list.containsKey("eyes")) {
+                        var eyePath = targetDir.resolve(name1 + "eyes.png").toAbsolutePath();
+
+                        EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), eyePath);
+
+                        eyes = new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", eyePath.toString())), new HashMap<>());
+                        list.computeIfAbsent("eyes", key -> eyes);
+                    } else {
+                        eyes = list.get("eyes");
+                    }
+
+                    if (materialRemap != null) materialRemap.put(materialName, "eyes");
+
+                    continue;
+                case "Standard":
+                case "Unlit":
+                case "FresnelEffect":
+                case "SSS":
+                case "NonDirectional":
+                    ApiMaterial material1;
+
+                    var eyePath = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
+
+                    EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), eyePath);
+
+                    material1 = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", eyePath.toString())), new HashMap<>());
+                        list.putIfAbsent(materialName, material1);
+
+//                    if (materialRemap != null) materialRemap.put(materialName, "eyes");
+
+
+                    continue;
+                case "InsideEmissionParallax":
+                    break;
+                case "Transparent":
+                    break;
+                case "SSSEffect":
+                    break;
+                case "FresnelBlend":
+                    break;
+            }
+
+            list.put(materialName, mat);
+
+            IMCT.TOTAL_SHADERS.add(shader);
         }
     }
 
     private static EyeGraph SV_EYE = new EyeGraph(256);
 
+    private static FIreGraph SV_BODY = new FIreGraph(1080);
     private static FIreGraph SV_FIRE = new FIreGraph(256);
 
     protected void processEyes(String k, Map<String, ApiMaterial> materials, Path modelDir, Path targetDir) {
         var left_eye = materials.remove("l_eye");
-        if(left_eye == null) materials.remove("left_eye");
+        if(left_eye == null) left_eye = materials.remove("left_eye");
+        if(left_eye == null) left_eye = materials.remove("eye_l");
 
         var right_eye = materials.remove("r_eye");
-        if(right_eye == null) materials.remove("right_eye");
+        if(right_eye == null) right_eye = materials.remove("right_eye");
+        if(right_eye == null) right_eye = materials.remove("eye_r");
 
         if(left_eye == null) return;
 
