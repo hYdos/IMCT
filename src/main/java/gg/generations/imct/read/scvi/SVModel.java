@@ -306,48 +306,59 @@ public class SVModel extends Model {
 
             var name1 = name.equals("rare") ? "shiny_" : "";
 
+
+            Path path;
+
             switch (shader) {
                 case "Eye":
                 case "EyeClearCoat":
-                    ApiMaterial eyes;
-
                     if(!list.containsKey("eyes")) {
-                        var eyePath = targetDir.resolve(name1 + "eyes.png").toAbsolutePath();
+                        path = targetDir.resolve(name1 + "eyes.png").toAbsolutePath();
 
-                        EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), eyePath);
+                        EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
 
-                        eyes = new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", eyePath.toString())), new HashMap<>());
-                        list.computeIfAbsent("eyes", key -> eyes);
-                    } else {
-                        eyes = list.get("eyes");
+                        list.computeIfAbsent("eyes", key -> new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid")));
                     }
 
                     if (materialRemap != null) materialRemap.put(materialName, "eyes");
 
                     continue;
-                case "Standard":
                 case "Unlit":
+                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
+
+                    EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+
+                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "unlit"));
+                    list.putIfAbsent(materialName, mat);
+
+                    continue;
+                case "Transparent":
+
+                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
+
+                    EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+
+                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "transparent"));
+                    list.putIfAbsent(materialName, mat);
+
+                    continue;
+                case "SSSEffect":
+                case "Standard":
                 case "FresnelEffect":
                 case "SSS":
                 case "NonDirectional":
-                    ApiMaterial material1;
+                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
 
-                    var eyePath = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
+                    EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
 
-                    EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), eyePath);
-
-                    material1 = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", eyePath.toString())), new HashMap<>());
-                        list.putIfAbsent(materialName, material1);
+                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
+                        list.putIfAbsent(materialName, mat);
 
 //                    if (materialRemap != null) materialRemap.put(materialName, "eyes");
 
 
                     continue;
                 case "InsideEmissionParallax":
-                    break;
-                case "Transparent":
-                    break;
-                case "SSSEffect":
                     break;
                 case "FresnelBlend":
                     break;

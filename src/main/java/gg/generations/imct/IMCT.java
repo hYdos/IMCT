@@ -22,40 +22,40 @@ public class IMCT {
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0004\\pm0004_00_00"), SVModel::new, Paths.get("output/0004"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0005\\pm0005_00_00"), SVModel::new, Paths.get("output/0005"));
 
-        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm1107_00_00\\pm1107_00_00"), SVModel::new, Paths.get("output\\blep\\pm0040_00_01"));
+        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\eyes\\pm0049\\pm0049_00_00"), SVModel::new, Paths.get("output\\blep\\pm0049_00_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_01_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_11_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_11_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_01_00"));
 
+//
+        var path = Paths.get("C:\\Users\\water\\Downloads\\eyes\\derp");
 
-        var path = Paths.get("C:\\Users\\water\\Downloads\\eyes");
+        var paths = Files.walk(path, 0).flatMap(x -> {
+            try {
+                return Files.walk(x, 1).filter(a -> !x.equals(a)).flatMap(a -> {
+//                    System.out.print("a -> " + a);
+                    try {
+                        return Files.walk(a, 1).filter(b -> !b.equals(a));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).toList();
 
-//        var paths = Files.walk(path, 0).flatMap(x -> {
-//            try {
-//                return Files.walk(x, 1).filter(a -> !x.equals(a)).flatMap(a -> {
-////                    System.out.print("a -> " + a);
-//                    try {
-//                        return Files.walk(a, 1).filter(b -> !b.equals(a));
-//                    } catch (IOException e) {
-//                        throw new RuntimeException(e);
-//                    }
-//                });
-//            } catch (IOException e) {
-//                throw new RuntimeException(e);
-//            }
-//        }).toList();
-//
-//        int size = paths.size();
-//
-//        executeSequentially(paths, (p, i) -> () -> {
-//            System.out.println((i + 1) + "/" + (size) + " Processing " + p.toString());
-//            try {
-//                write(p);
-//            } catch (RuntimeException e) {
-//                e.printStackTrace();
-//            }
-//        }, 0).join();
-//
-//        System.out.println("Tasks Complete.");
+        int size = paths.size();
+
+        executeSequentially(paths, (p, i) -> () -> {
+            System.out.println((i + 1) + "/" + (size) + " Processing " + p.toString());
+            try {
+                write(p);
+            } catch (RuntimeException e) {
+                e.printStackTrace();
+            }
+        }, 0).join();
+
+        System.out.println("Tasks Complete.");
 
         System.out.println(TOTAL_SHADERS);
 

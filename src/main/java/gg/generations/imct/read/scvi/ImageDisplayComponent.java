@@ -43,8 +43,8 @@ public class ImageDisplayComponent extends Component {
 
         private volatile Boolean response = null;
 
-        public Proxy(BufferedImage left, BufferedImage right, CompletableFuture<Boolean> resultFuture) {
-            frame = new JFrame("Image Display Test");
+        public Proxy(String name, BufferedImage left, BufferedImage right, CompletableFuture<Boolean> resultFuture) {
+            frame = new JFrame(name);
 
             // Create a panel to hold the component and buttons
             JPanel panel = new JPanel(new BorderLayout());
@@ -84,20 +84,20 @@ public class ImageDisplayComponent extends Component {
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         }
 
-        public static CompletableFuture<Boolean> compare(BufferedImage left, BufferedImage right) {
+        public static CompletableFuture<Boolean> compare(String name, BufferedImage left, BufferedImage right) {
 
             if(right == null) {
                 return CompletableFuture.completedFuture(true);
             }
             CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
 
-            var proxy = new Proxy(left, right, resultFuture);
+            new Proxy(name, left, right, resultFuture);
 
             return resultFuture;
         }
 
         public static void main(String[] args) {
-            System.out.println("Rawr: " + compare(null, null));
+            System.out.println("Rawr: " + compare("rawre", null, null));
         }
 
         public static BufferedImage loadImageFromPath(Path imagePath) {

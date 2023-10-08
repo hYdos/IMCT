@@ -100,7 +100,9 @@ public class GlbWriter {
 
             var scale = 1f/(max - min);
 
-            CompletableFuture.completedFuture(null).thenRun(checkShiny("eyes", model, path)).thenRun(checkShiny("fire", model, path)).join();
+            model.materials.get("regular").keySet().stream().map(s -> checkShiny(s, model, path)).reduce(CompletableFuture.completedFuture(null), (BiFunction<CompletableFuture<? extends Object>, Runnable, CompletableFuture<? extends Object>>) CompletableFuture::thenRun, CompletableFuture::allOf).join();
+
+//            CompletableFuture.completedFuture(null).thenRun(checkShiny("eyes", model, path)).thenRun(checkShiny("fire", model, path)).join();
 
 
 
@@ -143,7 +145,7 @@ public class GlbWriter {
                 Path regularPath = path.resolve(Path.of(regular.getTexture("BaseColorMap").filePath()).getFileName());
                 Path shinyPath = path.resolve(Path.of(shiny.getTexture("BaseColorMap").filePath()).getFileName());
 
-                ImageDisplayComponent.Proxy.compare(EyeTextureGenerator.loadImage(regularPath), EyeTextureGenerator.loadImage(shinyPath)).thenAccept(aBoolean -> {
+                ImageDisplayComponent.Proxy.compare(name, EyeTextureGenerator.loadImage(regularPath), EyeTextureGenerator.loadImage(shinyPath)).thenAccept(aBoolean -> {
                     if (!aBoolean) {
                         model.materials.get("rare").remove(name);
 
@@ -181,7 +183,7 @@ public class GlbWriter {
         materialsJson.forEach((material, name) -> {
             var json1 = new JsonObject();
 
-            json1.addProperty("type", "solid");
+            json1.addProperty("type", (String) material.properties().get("type"));
             json1.addProperty("texture", Path.of(material.getTexture("BaseColorMap").filePath()).getFileName().toString());
 
             jsonMaterials.add(name, json1);
