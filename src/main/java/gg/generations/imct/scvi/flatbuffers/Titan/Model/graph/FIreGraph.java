@@ -102,6 +102,8 @@ public class FIreGraph {
             baseColor4.setColor(vec.x, vec.y, vec.z);
         else baseColor4.resetColor();
 
+        emissionColor1.resetColor().resetIntensity();
+
         if (material.properties().get("EmissionColorLayer1") instanceof Vector4f vec)
             emissionColor1.setColor(vec.x, vec.y, vec.z);
         else emissionColor1.resetColor();
@@ -132,4 +134,17 @@ public class FIreGraph {
 
 //        return emission.get();
     }
+
+    public void display() {
+        EyeTextureGenerator.displayImage(output.get(), "output");
+        EyeTextureGenerator.displayImage(base.get(), "base");
+        EyeTextureGenerator.displayImage(emission.get(), "emission");
+        EyeTextureGenerator.displayImage(baseColor1.get(), "baseColor1");
+        EyeTextureGenerator.displayImage(baseColor2.get(), "baseColor2");
+        EyeTextureGenerator.displayImage(baseColor3.get(), "baseColor3");
+        EyeTextureGenerator.displayImage(baseColor4.get(), "baseColor4");
+        EyeTextureGenerator.displayImage(emissionColor1.get(), "emissionColor1");
+        EyeTextureGenerator.displayImage(emissionColor2.get(), "emissionColor2");
+        EyeTextureGenerator.displayImage(emissionColor3.get(), "emissionColor3");
+        EyeTextureGenerator.displayImage(emissionColor4.get(), "emissionColor4");}
 }

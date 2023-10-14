@@ -16,7 +16,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 
 public class EyeGraph {
-    private final CompositeNode output;
+    private final LayersNode output;
     private final LayersNode base;
     private final LayersNode emission;
     private MaskNode baseColor1;
@@ -71,11 +71,10 @@ public class EyeGraph {
                 emissionColor1.setMask(lymSplit.getRedChannel()),
                 emissionColor2.setMask(lymSplit.getGreenChannel()),
                 emissionColor3.setMask(lymSplit.getBlueChannel()),
-                emissionColor4.setMask(lymSplit.getAlphaChannel()),
-                emissionColor5.setMask(new GrayScaleNode().setInput(maskScale))
+                emissionColor4.setMask(lymSplit.getAlphaChannel())
         );
 
-        output = new CompositeNode().setComposite(Composites.SCREEN).setBottom(emission).setTop(base);
+        output = new LayersNode(new CompositeNode().setComposite(Composites.SCREEN).setBottom(base).setTop(emission), emissionColor5.setMask(new GrayScaleNode().setInput(maskScale)));
     }
 
     public BufferedImage update(ApiMaterial material, Path modelDir) {
@@ -87,6 +86,10 @@ public class EyeGraph {
 
         if(Files.notExists(path)) {
             path = modelDir.resolve(modelDir.getFileName().toString() + "_r_eye_msk.png");
+        }
+
+        if(Files.notExists(path)) {
+            path = Path.of(material.getTexture("HighLightMaskMap").filePath());
         }
 
         mask.setImage(path);
@@ -111,16 +114,16 @@ public class EyeGraph {
         if(material.properties().get("EmissionColorLayer5") instanceof Vector4f vec) emissionColor5.setColor(vec.x, vec.y, vec.z);
         else emissionColor5.resetColor();
 
-        if(material.properties().get("EmissionIntensityLayer1") instanceof Vector4f vec) emissionColor1.setColor(vec.x, vec.y, vec.z);
-        else emissionColor1.resetColor();
-        if(material.properties().get("EmissionIntensityLayer1") instanceof Vector4f vec) emissionColor2.setColor(vec.x, vec.y, vec.z);
-        else emissionColor2.resetColor();
-        if(material.properties().get("EmissionIntensityLayer1") instanceof Vector4f vec) emissionColor3.setColor(vec.x, vec.y, vec.z);
-        else emissionColor3.resetColor();
-        if(material.properties().get("EmissionIntensityLayer1") instanceof Vector4f vec) emissionColor4.setColor(vec.x, vec.y, vec.z);
-        else emissionColor4.resetColor();
-        if(material.properties().get("EmissionIntensityLayer1") instanceof Vector4f vec) emissionColor5.setColor(vec.x, vec.y, vec.z);
-        else emissionColor5.resetColor();
+        if(material.properties().get("EmissionIntensityLayer1") instanceof Float intensity) emissionColor1.setIntensity(intensity);
+        else emissionColor1.resetIntensity();
+        if(material.properties().get("EmissionIntensityLayer2") instanceof Float intensity) emissionColor2.setIntensity(intensity);
+        else emissionColor2.resetIntensity();
+        if(material.properties().get("EmissionIntensityLayer3") instanceof Float intensity) emissionColor3.setIntensity(intensity);
+        else emissionColor3.resetIntensity();
+        if(material.properties().get("EmissionIntensityLayer4") instanceof Float intensity) emissionColor4.setIntensity(intensity);
+        else emissionColor4.resetIntensity();
+        if(material.properties().get("EmissionIntensityLayer5") instanceof Float intensity) emissionColor5.setIntensity(intensity);
+        else emissionColor5.resetIntensity();
 
         return output.get();
     }

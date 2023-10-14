@@ -312,6 +312,15 @@ public class SVModel extends Model {
             switch (shader) {
                 case "Eye":
                 case "EyeClearCoat":
+                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
+
+                    EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
+
+                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
+                    list.putIfAbsent(materialName, mat);
+
+
+/*
                     if(!list.containsKey("eyes")) {
                         path = targetDir.resolve(name1 + "eyes.png").toAbsolutePath();
 
@@ -321,6 +330,7 @@ public class SVModel extends Model {
                     }
 
                     if (materialRemap != null) materialRemap.put(materialName, "eyes");
+*/
 
                     continue;
                 case "Unlit":
@@ -370,9 +380,9 @@ public class SVModel extends Model {
         }
     }
 
-    private static EyeGraph SV_EYE = new EyeGraph(256);
+    public static EyeGraph SV_EYE = new EyeGraph(256);
 
-    private static FIreGraph SV_BODY = new FIreGraph(1080);
+    public static FIreGraph SV_BODY = new FIreGraph(1080);
     private static FIreGraph SV_FIRE = new FIreGraph(256);
 
     protected void processEyes(String k, Map<String, ApiMaterial> materials, Path modelDir, Path targetDir) {

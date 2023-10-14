@@ -25,7 +25,11 @@ public class MaskNode extends BaseNode {
     }
 
     public MaskNode setColor(float red, float green, float blue) {
-        return setColor((int) (red * 255), (int) (green * 255), (int) (blue * 255));
+        return setColor((int) (rgbTosRGB(red) * 255), (int) (rgbTosRGB(green) * 255), (int) (rgbTosRGB(blue) * 255));
+    }
+
+    private float rgbTosRGB(float value) {
+        return (float) Math.pow(value, 1/2.2);
     }
 
     public MaskNode resetColor() {

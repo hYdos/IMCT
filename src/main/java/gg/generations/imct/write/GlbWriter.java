@@ -124,7 +124,7 @@ public class GlbWriter {
         }
 
         try {
-            Files.walk(input).filter(a -> a.toString().endsWith("tranm")).forEach(a -> copy(a, path));
+            Files.walk(input).filter(a -> a.toString().endsWith("tranm") || a.toString().endsWith("gfbanm")).forEach(a -> copy(a, path));
 
             var list = Files.walk(path).toList();
 

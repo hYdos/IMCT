@@ -1,5 +1,6 @@
 package gg.generations.imct.read.swsh;
 
+import de.javagl.jgltf.model.NodeModel;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.api.ApiTexture;
@@ -7,17 +8,23 @@ import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.TextureMap;
 import gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Vector3;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
 import gg.generations.imct.util.TrinityUtils;
 import org.joml.*;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class SWSHModel extends Model {
-
     private final Map<Integer, String> materialIds = new HashMap<>();
 
-    public SWSHModel(Path modelDir) {
+    public SWSHModel(Path modelDir, Path targetDir) {
         var gfbmdl = gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model.getRootAsModel(read(modelDir.resolve(modelDir.getFileName() + ".gfbmdl")));
         if (gfbmdl.groupsLength() != gfbmdl.meshesLength())
             System.err.println("There may be an error Groups format != Mesh format");
@@ -36,6 +43,8 @@ public class SWSHModel extends Model {
 
         List<Bone> bones = new ArrayList<>();
 
+        var rigId = -1;
+
         // First bone pass. Get all raw info into a normal format
         for (int i = 0; i < gfbmdl.bonesLength(); i++) {
             var bone = gfbmdl.bones(i);
@@ -47,7 +56,7 @@ public class SWSHModel extends Model {
                     new Quaternionf().rotateLocalX(rawRotation.x).rotateLocalY(rawRotation.y).rotateLocalZ(rawRotation.z),
                     toVec3(bone.scale()),
                     bone.parent(),
-                    i,
+                    /*bone.boneType() == 1 ? (rigId += 1) : -1*/ i,
                     bone.boneType(),
                     new ArrayList<>()
             ));
@@ -79,7 +88,7 @@ public class SWSHModel extends Model {
             if (!(r.x == 0 && r.y == 0 && r.z == 0 && r.w == 1)) node.setRotation(new float[]{r.x, r.y, r.z, r.w});
             if (!(s.x == 1 && s.y == 1 && s.z == 1)) node.setScale(new float[]{s.x, s.y, s.z});
 
-            if (bone.rigIdx != -1) joints.add(bone.rigIdx, node);
+            if (gfbmdl.bones(bone.rigIdx).rigidCheck() == null) joints.add(node);
             skeleton.add(node);
         }
 
@@ -98,6 +107,7 @@ public class SWSHModel extends Model {
             var materialName = material.name();
             var shader = Objects.requireNonNull(material.shaderGroup(), "Null shader name");
             properties.put("shader", shader);
+            properties.put("type", "solid");
 
             for (int j = 0; j < material.common().valuesLength(); j++) {
                 var property = material.common().values(j);
@@ -126,12 +136,35 @@ public class SWSHModel extends Model {
             }
 
             materialIds.put(i, materialName);
-//            materials.put(materialName, new ApiMaterial(
-//                    materialName,
-//                    textures,
-//                    properties
-//            ));
+            var material1 = materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
+                    key,
+                    textures,
+                    properties
+            ));
+            var texture = material1.getTexture("BaseColorMap");
+
+            materials.computeIfAbsent("rare", mat -> new HashMap<>()).put(materialName, new ApiMaterial(
+                    materialName,
+                    List.of(new ApiTexture("BaseColorMap", texture.filePath().replace(".png", "_rare.png"))),
+                    properties
+            ));
         }
+
+        materials.forEach(new BiConsumer<String, Map<String, ApiMaterial>>() {
+            @Override
+            public void accept(String s, Map<String, ApiMaterial> map) {
+                var shiny = s.equals("rare") ? "" : "shiny_";
+
+                map.values().stream().map(a -> a.getTexture("BaseColorMap")).forEach(apiMaterial -> {
+                    var path = Path.of(apiMaterial.filePath());
+                    try {
+                        EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
+        });
 
         for (int i = 0; i < gfbmdl.groupsLength(); i++) {
             System.out.println("Processing Mesh " + i);
@@ -191,19 +224,19 @@ public class SWSHModel extends Model {
                         }
                         case COLOR_1, COLOR_2, COLOR_3, COLOR_4 -> {
                             if (Objects.requireNonNull(attribute.format) == AttributeFormat.BYTE) {
+                                var w = vertexBuffer.get() & 0xFF;
                                 var x = vertexBuffer.get() & 0xFF;
                                 var y = vertexBuffer.get() & 0xFF;
                                 var z = vertexBuffer.get() & 0xFF;
-                                var w = vertexBuffer.get() & 0xFF;
                                 colors.add(new Vector4f(x, y, z, w));
                             } else throw new RuntimeException("Unexpected color format: " + attribute.format);
                         }
                         case BLEND_INDICES -> {
                             if (Objects.requireNonNull(attribute.format) == AttributeFormat.BYTE) {
-                                var w = vertexBuffer.get() & 0xFF;
                                 var x = vertexBuffer.get() & 0xFF;
                                 var y = vertexBuffer.get() & 0xFF;
                                 var z = vertexBuffer.get() & 0xFF;
+                                var w = vertexBuffer.get() & 0xFF;
                                 boneIds.add(new Vector4i(x, y, z, w));
                             } else throw new RuntimeException("Unexpected bone idx format: " + attribute.format);
                         }
@@ -239,9 +272,17 @@ public class SWSHModel extends Model {
                 var mesh = meshGroup.polygons(j);
                 var indices = new ArrayList<Integer>();
                 for (var idx = 0; idx < mesh.facesLength(); idx++) indices.add(mesh.faces(idx));
-//                meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get(idToName(mesh.materialIndex())), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
+                var materialId = idToName(mesh.materialIndex());
+
+                meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get("regular").get(materialId), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
             }
         }
+    }
+
+    private void fillJoints(NodeModel root, List<NodeModel> jointMap) {
+        joints.add((DefaultNodeModel) root);
+
+        root.getChildren().stream().filter(jointMap::contains).forEach(child -> fillJoints((DefaultNodeModel) child, jointMap));
     }
 
     private String idToName(long idx) {
