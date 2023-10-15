@@ -8,21 +8,60 @@ import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.TextureMap;
 import gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Vector3;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeGraph;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.MirrorNode;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.*;
 import gg.generations.imct.util.TrinityUtils;
+import gg.generations.imct.write.GlbReader;
 import org.joml.*;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.IntConsumer;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class SWSHModel extends Model {
     private final Map<Integer, String> materialIds = new HashMap<>();
+
+    private static final TextureNode bottom = new TextureNode();
+    private static final TextureNode top = new TextureNode();
+
+    private static final TileNode tiling = new TileNode().setInput(bottom);
+
+    private static final MirrorNode mirror = new MirrorNode().setInput(top);
+    private static final InputNode layerEyes = layerEyes();
+
+    private static final InputNode eyes = eyes();
+
+    private static InputNode layerEyes() {
+        var pupil = new MirrorNode().setMirrrLeft(true).setInput(new TileNode().setTiling(1, 4).setInput(bottom));
+
+        var layer = new EyeGraph.LayersNode(pupil, top);
+
+        var split = new SplitNode().setInput(layer);
+
+        var left = new MirrorNode().setInput(split.getRight()).setMirrrLeft(true);
+        var right = new MirrorNode().setInput(split.getLeft());
+
+        return new UniteNode()
+                .setLeft(left)
+                .setRight(right);
+    }
+
+    private static InputNode eyes() {
+        var split = new SplitNode().setInput(top);
+
+        var left = new MirrorNode().setInput(split.getRight()).setMirrrLeft(true);
+        var right = new MirrorNode().setInput(split.getLeft());
+
+        return new UniteNode()
+                .setLeft(left)
+                .setRight(right);
+    }
+
+    static {
+
+    }
 
     public SWSHModel(Path modelDir, Path targetDir) {
         var gfbmdl = gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model.getRootAsModel(read(modelDir.resolve(modelDir.getFileName() + ".gfbmdl")));
@@ -145,7 +184,7 @@ public class SWSHModel extends Model {
 
             materials.computeIfAbsent("rare", mat -> new HashMap<>()).put(materialName, new ApiMaterial(
                     materialName,
-                    List.of(new ApiTexture("BaseColorMap", texture.filePath().replace(".png", "_rare.png"))),
+                    textures.stream().map(a -> new ApiTexture(a.type(), a.filePath().replace(".png", "_rare.png"))).toList(),
                     properties
             ));
         }
@@ -155,19 +194,39 @@ public class SWSHModel extends Model {
             public void accept(String s, Map<String, ApiMaterial> map) {
                 var shiny = s.equals("rare") ? "" : "shiny_";
 
-                map.values().stream().map(a -> a.getTexture("BaseColorMap")).forEach(apiMaterial -> {
-                    var path = Path.of(apiMaterial.filePath());
-                    try {
-                        EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
+                map.values().stream().map(a -> new GlbReader.Pair<>(a.getTexture("BaseColorMap"), a.getTexture("LyBaseColorMap"))).forEach(pair -> {
+                    var base = Path.of(pair.left().filePath());
+
+                    if(pair.right() != null && pair.right().filePath().contains("Iris")) {
+                        var ly = Path.of(pair.right().filePath());
+                        top.setImage(base);
+                        bottom.setImage(ly);
+                        EyeTextureGenerator.generate(layerEyes.getInputData().get(), targetDir.resolve(base.getFileName()));
+                    } else if(pair.left().filePath().contains("Eye")) {
+                        top.setImage(base);
+                        EyeTextureGenerator.generate(eyes.getInputData().get(), targetDir.resolve(base.getFileName()));
+                    } else {
+                        top.setImage(base);
+                        EyeTextureGenerator.generate((pair.left().filePath().contains("Mouth") ? top : mirror).get(), targetDir.resolve(base.getFileName()));
                     }
+
+
+
+//                    try {
+//                    input.setImage(path);
+
+//                        EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
+//                        Files.writeString(targetDir.resolve(path.getFileName().toString() + ".meta"), longboiMeta, StandardOpenOption.CREATE_NEW);
+
+//                    } catch (IOException e) {
+//                        System.out.println(e.toString());
+//                        throw new RuntimeException(e);
+//                    }
                 });
             }
         });
 
         for (int i = 0; i < gfbmdl.groupsLength(); i++) {
-            System.out.println("Processing Mesh " + i);
             var group = gfbmdl.groups(i);
             var name = gfbmdl.bones((int) group.boneIndex()).name();
             var meshGroup = gfbmdl.meshes((int) group.meshIndex());
@@ -268,7 +327,6 @@ public class SWSHModel extends Model {
             }
 
             for (int j = 0; j < meshGroup.polygonsLength(); j++) {
-                System.out.println("Processing Sub-mesh " + j);
                 var mesh = meshGroup.polygons(j);
                 var indices = new ArrayList<Integer>();
                 for (var idx = 0; idx < mesh.facesLength(); idx++) indices.add(mesh.faces(idx));

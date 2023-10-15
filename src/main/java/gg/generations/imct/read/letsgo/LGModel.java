@@ -200,10 +200,10 @@ public class LGModel extends Model {
                         }
                         case BLEND_INDICES -> {
                             if (Objects.requireNonNull(attribute.format) == AttributeFormat.BYTE) {
-                                var w = vertexBuffer.get() & 0xFF;
                                 var x = vertexBuffer.get() & 0xFF;
                                 var y = vertexBuffer.get() & 0xFF;
                                 var z = vertexBuffer.get() & 0xFF;
+                                var w = vertexBuffer.get() & 0xFF;
                                 boneIds.add(new Vector4i(x, y, z, w));
                             } else throw new RuntimeException("Unexpected bone idx format: " + attribute.format);
                         }
