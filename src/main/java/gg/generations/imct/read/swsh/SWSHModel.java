@@ -59,10 +59,6 @@ public class SWSHModel extends Model {
                 .setRight(right);
     }
 
-    static {
-
-    }
-
     public SWSHModel(Path modelDir, Path targetDir) {
         var gfbmdl = gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model.getRootAsModel(read(modelDir.resolve(modelDir.getFileName() + ".gfbmdl")));
         if (gfbmdl.groupsLength() != gfbmdl.meshesLength())
@@ -95,7 +91,7 @@ public class SWSHModel extends Model {
                     new Quaternionf().rotateLocalX(rawRotation.x).rotateLocalY(rawRotation.y).rotateLocalZ(rawRotation.z),
                     toVec3(bone.scale()),
                     bone.parent(),
-                    /*bone.boneType() == 1 ? (rigId += 1) : -1*/ i,
+                    i,
                     bone.boneType(),
                     new ArrayList<>()
             ));
@@ -137,6 +133,24 @@ public class SWSHModel extends Model {
             if (bone.parent == -1) continue;
             var parent = skeleton.get(bone.parent);
             parent.addChild(node);
+        }
+
+        if(joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
+            var current = joints.get(0).getParent();
+
+            while (current != null) {
+                joints.add((DefaultNodeModel) current);
+
+                if(current.getName().equals("Origin")) {
+                    current = null;
+                } else {
+                    current = current.getParent();
+                }
+            }
+
+            if(joints.stream().map(a -> a.getName()).noneMatch(a -> a.equals("Origin"))) {
+                throw new RuntimeException("Origin bone must exist!");
+            }
         }
 
         for (int i = 0; i < gfbmdl.materialsLength(); i++) {

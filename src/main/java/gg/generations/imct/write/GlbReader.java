@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 public class GlbReader {
     private static Gson gson = new GsonBuilder().setPrettyPrinting().create();
     public static void main(String[] args) {
-        read(Path.of("C:\\Users\\water\\Downloads\\chikorita\\chikorita.glb"));
+        read(Path.of("C:\\Users\\water\\Documents\\nimbleaf.glb"));
     }
 
     public static record Material(String name, String image) {}
@@ -80,10 +80,13 @@ public class GlbReader {
 
             var p = Path.of("output1").resolve(path.getFileName().toString().replace(".glb", ""));
 
+            if(Files.notExists(p)) Files.createDirectories(path);
+
             images.values().forEach(texture -> {
                 try {
+                    var x = p.resolve(texture.name.replace(".tga", "") + ".png");
                     var image = ImageIO.read(new ByteBufferBackedInputStream(texture.buffer()));
-                    ImageIO.write(image, "PNG", Files.newOutputStream(p.resolve(texture.name.replace(".tga", "") + ".png")));
+                    ImageIO.write(image, "PNG", Files.newOutputStream(x));
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

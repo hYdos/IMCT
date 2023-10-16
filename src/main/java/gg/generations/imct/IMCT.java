@@ -18,13 +18,13 @@ public class IMCT {
 
 
     public static void main(String[] args) throws IOException {
-        OpenCV.loadLocally();
+//        OpenCV.loadLocally();
 
 //        GlbWriter.write(new SVModel(Paths.get("F:\\PokemonModels\\SV\\pokemon\\data\\pm0006\\pm0006_00_00")), Paths.get("output/ScarletViolet.glb"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0004\\pm0004_00_00"), SVModel::new, Paths.get("output/0004"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0005\\pm0005_00_00"), SVModel::new, Paths.get("output/0005"));
 
-//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\smallbatch\\smallbatch\\pm0009_00"), SWSHModel::new, Paths.get("output\\blep\\pm0009_00"));
+//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\smallbatch\\smallbatch\\pm0012_00"), SWSHModel::new, Paths.get("output\\blep\\pm0012_11"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0077arceus\\pm0077\\pm0077_00_00"), LAModel::new, Paths.get("output\\blep\\pm0077_00_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_01_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_11_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_11_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_01_00"));
@@ -73,7 +73,7 @@ public class IMCT {
 
     public static void write(Path path) {
         try {
-            var oput = Paths.get("output3/" + path.getFileName().toString());
+            var oput = Paths.get("output4/" + path.getFileName().toString());
         GlbWriter.write(path, SWSHModel::new, oput);
 
 //            deleteFolder(oput);
