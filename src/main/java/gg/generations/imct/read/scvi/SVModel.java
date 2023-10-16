@@ -314,7 +314,7 @@ public class SVModel extends Model {
                 case "EyeClearCoat":
                     path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
 
-                    EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
+                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
 
                     mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
                     list.putIfAbsent(materialName, mat);
@@ -336,7 +336,7 @@ public class SVModel extends Model {
                 case "Unlit":
                     path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
 
-                    EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
 
                     mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "unlit"));
                     list.putIfAbsent(materialName, mat);
@@ -346,7 +346,7 @@ public class SVModel extends Model {
 
                     path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
 
-                    EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
 
                     mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "transparent"));
                     list.putIfAbsent(materialName, mat);
@@ -359,7 +359,7 @@ public class SVModel extends Model {
                 case "NonDirectional":
                     path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
 
-                    EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
 
                     mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
                         list.putIfAbsent(materialName, mat);

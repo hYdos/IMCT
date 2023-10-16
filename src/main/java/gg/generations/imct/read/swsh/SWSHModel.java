@@ -2,6 +2,7 @@ package gg.generations.imct.read.swsh;
 
 import de.javagl.jgltf.model.NodeModel;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
+import gg.generations.imct.IMCT;
 import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.api.ApiTexture;
 import gg.generations.imct.api.Mesh;
@@ -153,77 +154,78 @@ public class SWSHModel extends Model {
             }
         }
 
-        for (int i = 0; i < gfbmdl.materialsLength(); i++) {
-            var material = gfbmdl.materials(i);
-            var properties = new HashMap<String, Object>();
-            var textures = new ArrayList<ApiTexture>();
-            var materialName = material.name();
-            var shader = Objects.requireNonNull(material.shaderGroup(), "Null shader name");
-            properties.put("shader", shader);
-            properties.put("type", "solid");
+        if(IMCT.messWithTexture) {
 
-            for (int j = 0; j < material.common().valuesLength(); j++) {
-                var property = material.common().values(j);
-                properties.put(property.name(), property.value());
+            for (int i = 0; i < gfbmdl.materialsLength(); i++) {
+                var material = gfbmdl.materials(i);
+                var properties = new HashMap<String, Object>();
+                var textures = new ArrayList<ApiTexture>();
+                var materialName = material.name();
+                var shader = Objects.requireNonNull(material.shaderGroup(), "Null shader name");
+                properties.put("shader", shader);
+                properties.put("type", "solid");
+
+                for (int j = 0; j < material.common().valuesLength(); j++) {
+                    var property = material.common().values(j);
+                    properties.put(property.name(), property.value());
+                }
+
+                for (int j = 0; j < material.valuesLength(); j++) {
+                    var property = material.values(j);
+                    properties.put(property.name(), property.value());
+                }
+
+                for (int j = 0; j < material.common().colorsLength(); j++) {
+                    var property = material.common().colors(j);
+                    properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
+                }
+
+                for (int j = 0; j < material.colorsLength(); j++) {
+                    var property = material.colors(j);
+                    properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
+                }
+
+                for (int j = 0; j < material.textureMapsLength(); j++) {
+                    var rawTexture = material.textureMaps(j);
+                    var texName = gfbmdl.textureNames(rawTexture.index());
+                    textures.add(new ApiTexture(processTextureName(rawTexture), modelDir.resolve(texName + ".png").toAbsolutePath().toString()));
+                }
+
+                materialIds.put(i, materialName);
+                var material1 = materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
+                        key,
+                        textures,
+                        properties
+                ));
+                var texture = material1.getTexture("BaseColorMap");
+
+                materials.computeIfAbsent("rare", mat -> new HashMap<>()).put(materialName, new ApiMaterial(
+                        materialName,
+                        textures.stream().map(a -> new ApiTexture(a.type(), a.filePath().replace(".png", "_rare.png"))).toList(),
+                        properties
+                ));
             }
 
-            for (int j = 0; j < material.valuesLength(); j++) {
-                var property = material.values(j);
-                properties.put(property.name(), property.value());
-            }
+            materials.forEach(new BiConsumer<String, Map<String, ApiMaterial>>() {
+                @Override
+                public void accept(String s, Map<String, ApiMaterial> map) {
+                    var shiny = s.equals("rare") ? "" : "shiny_";
 
-            for (int j = 0; j < material.common().colorsLength(); j++) {
-                var property = material.common().colors(j);
-                properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
-            }
+                    map.values().stream().map(a -> new GlbReader.Pair<>(a.getTexture("BaseColorMap"), a.getTexture("LyBaseColorMap"))).forEach(pair -> {
+                        var base = Path.of(pair.left().filePath());
 
-            for (int j = 0; j < material.colorsLength(); j++) {
-                var property = material.colors(j);
-                properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
-            }
-
-            for (int j = 0; j < material.textureMapsLength(); j++) {
-                var rawTexture = material.textureMaps(j);
-                var texName = gfbmdl.textureNames(rawTexture.index());
-                textures.add(new ApiTexture(processTextureName(rawTexture), modelDir.resolve(texName + ".png").toAbsolutePath().toString()));
-            }
-
-            materialIds.put(i, materialName);
-            var material1 = materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
-                    key,
-                    textures,
-                    properties
-            ));
-            var texture = material1.getTexture("BaseColorMap");
-
-            materials.computeIfAbsent("rare", mat -> new HashMap<>()).put(materialName, new ApiMaterial(
-                    materialName,
-                    textures.stream().map(a -> new ApiTexture(a.type(), a.filePath().replace(".png", "_rare.png"))).toList(),
-                    properties
-            ));
-        }
-
-        materials.forEach(new BiConsumer<String, Map<String, ApiMaterial>>() {
-            @Override
-            public void accept(String s, Map<String, ApiMaterial> map) {
-                var shiny = s.equals("rare") ? "" : "shiny_";
-
-                map.values().stream().map(a -> new GlbReader.Pair<>(a.getTexture("BaseColorMap"), a.getTexture("LyBaseColorMap"))).forEach(pair -> {
-                    var base = Path.of(pair.left().filePath());
-
-                    if(pair.right() != null && pair.right().filePath().contains("Iris")) {
-                        var ly = Path.of(pair.right().filePath());
-                        top.setImage(base);
-                        bottom.setImage(ly);
-                        EyeTextureGenerator.generate(layerEyes.getInputData().get(), targetDir.resolve(base.getFileName()));
-                    } else if(pair.left().filePath().contains("Eye")) {
-                        top.setImage(base);
-                        EyeTextureGenerator.generate(eyes.getInputData().get(), targetDir.resolve(base.getFileName()));
-                    } else {
-                        top.setImage(base);
-                        EyeTextureGenerator.generate((pair.left().filePath().contains("Mouth") ? top : mirror).get(), targetDir.resolve(base.getFileName()));
-                    }
-
+                        if (pair.right() != null && pair.right().filePath().contains("Iris")) {
+                            var ly = Path.of(pair.right().filePath());
+                            top.setImage(base);
+                            bottom.setImage(ly);
+                            EyeTextureGenerator.generate(layerEyes.getInputData().get(), targetDir.resolve(base.getFileName()));
+                        } else if (pair.left().filePath().contains("Eye")) {
+                            top.setImage(base);
+                            EyeTextureGenerator.generate(eyes.getInputData().get(), targetDir.resolve(base.getFileName()));
+                        } else {
+                            top.setImage(base);
+                            EyeTextureGenerator.generate((pair.left().filePath().contains("Mouth") ? top : mirror).get(), targetDir.resolve(base.getFileName()));
+                        }
 
 
 //                    try {
@@ -236,9 +238,10 @@ public class SWSHModel extends Model {
 //                        System.out.println(e.toString());
 //                        throw new RuntimeException(e);
 //                    }
-                });
-            }
-        });
+                    });
+                }
+            });
+        }
 
         for (int i = 0; i < gfbmdl.groupsLength(); i++) {
             var group = gfbmdl.groups(i);
