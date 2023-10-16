@@ -123,6 +123,20 @@ public class SVModel extends Model {
             parent.addChild(node);
         }
 
+        if(joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
+            var current = joints.get(0).getParent();
+
+            while (current != null) {
+                joints.add((DefaultNodeModel) current);
+
+                if (current.getName().equals("Origin")) {
+                    current = null;
+                } else {
+                    current = current.getParent();
+                }
+            }
+        }
+
         var materialRemap = new HashMap<String, String>();
 
         // Process material data
