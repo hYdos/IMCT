@@ -1,5 +1,6 @@
 package gg.generations.imct.util;
 
+import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 
@@ -41,6 +42,12 @@ public class TrinityUtils {
         var halfValueBits = (sign << 15) | ((exponent - 127 + 15) << 10) | (mantissa >> 13);
 
         return (short) halfValueBits;
+    }
+
+    public static Vector2f readUVFloat(ByteBuffer buf) {
+        var x = readHalfFloat(buf.getShort());
+        var y = 1 - readHalfFloat(buf.getShort());
+        return new Vector2f(x, y);
     }
 
     public static float readHalfFloat(short value) {
