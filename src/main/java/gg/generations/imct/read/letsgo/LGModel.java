@@ -333,10 +333,15 @@ public class LGModel extends Model {
                             }
                         }
                         case UV2, UV3, UV4 -> {
-                            if (Objects.requireNonNull(attribute.format) == AttributeFormat.FLOAT) {
-                                var x = vertexBuffer.getFloat();
-                                var y = 1.0f - vertexBuffer.getFloat();
-                            } else throw new RuntimeException("Unexpected uv(2, 3, or 4) format: " + attribute.format);
+                            switch (Objects.requireNonNull(attribute.format)) {
+                                case FLOAT -> {
+                                    var x = vertexBuffer.getFloat();
+                                    var y = 1.0f - vertexBuffer.getFloat();
+                                }
+                                case HALF_FLOAT -> {
+                                    TrinityUtils.readUVFloat(vertexBuffer);
+                                }
+                            }
                         }
                         case COLOR_1, COLOR_2, COLOR_3, COLOR_4 -> {
                             if (Objects.requireNonNull(attribute.format) == AttributeFormat.BYTE) {
