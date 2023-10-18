@@ -1,23 +1,76 @@
 package gg.generations.imct.read.letsgo;
 
+import com.google.gson.GsonBuilder;
+import de.javagl.jgltf.model.NodeModel;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
+import gg.generations.imct.IMCT;
 import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.api.ApiTexture;
 import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
+import gg.generations.imct.read.scvi.SVModel;
+import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.*;
+import gg.generations.imct.read.swsh.SWSHModel;
 import gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.TextureMap;
 import gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Vector3;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeGraph;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.FIreGraph;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.MirrorNode;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.*;
 import gg.generations.imct.util.TrinityUtils;
+import gg.generations.imct.write.GlbReader;
 import org.joml.*;
 
+import java.awt.*;
+import java.awt.datatransfer.StringSelection;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.List;
+import java.util.function.BiConsumer;
 
 public class LGModel extends Model {
-
     private final Map<Integer, String> materialIds = new HashMap<>();
 
-    public LGModel(Path modelDir) {
+    private static final TextureNode bottom = new TextureNode();
+    private static final TextureNode top = new TextureNode();
+
+    private static final TileNode tiling = new TileNode().setInput(bottom);
+
+    private static final MirrorNode mirror = new MirrorNode().setInput(top);
+    private static final InputNode layerEyes = layerEyes();
+
+    private static final InputNode eyes = eyes();
+
+    private static InputNode layerEyes() {
+        var pupil = new MirrorNode().setMirrrLeft(true).setInput(new TileNode().setTiling(1, 4).setInput(bottom));
+
+        var layer = new EyeGraph.LayersNode(pupil, top);
+
+        var split = new SplitNode().setInput(layer);
+
+        var left = new MirrorNode().setInput(split.getRight()).setMirrrLeft(true);
+        var right = new MirrorNode().setInput(split.getLeft());
+
+        return new UniteNode()
+                .setLeft(left)
+                .setRight(right);
+    }
+
+    private static InputNode eyes() {
+        var split = new SplitNode().setInput(top);
+
+        var left = new MirrorNode().setInput(split.getRight()).setMirrrLeft(true);
+        var right = new MirrorNode().setInput(split.getLeft());
+
+        return new UniteNode()
+                .setLeft(left)
+                .setRight(right);
+    }
+
+    public LGModel(Path modelDir, Path targetDir) {
         var gfbmdl = gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model.getRootAsModel(read(modelDir.resolve(modelDir.getFileName() + ".gfbmdl")));
         if (gfbmdl.groupsLength() != gfbmdl.meshesLength())
             System.err.println("There may be an error Groups format != Mesh format");
@@ -35,6 +88,8 @@ public class LGModel extends Model {
         }
 
         List<Bone> bones = new ArrayList<>();
+
+        var rigId = -1;
 
         // First bone pass. Get all raw info into a normal format
         for (int i = 0; i < gfbmdl.bonesLength(); i++) {
@@ -79,7 +134,7 @@ public class LGModel extends Model {
             if (!(r.x == 0 && r.y == 0 && r.z == 0 && r.w == 1)) node.setRotation(new float[]{r.x, r.y, r.z, r.w});
             if (!(s.x == 1 && s.y == 1 && s.z == 1)) node.setScale(new float[]{s.x, s.y, s.z});
 
-            if (bone.rigIdx != -1) joints.add(bone.rigIdx, node);
+            if (gfbmdl.bones(bone.rigIdx).rigidCheck() == null) joints.add(node);
             skeleton.add(node);
         }
 
@@ -91,54 +146,120 @@ public class LGModel extends Model {
             parent.addChild(node);
         }
 
-        for (int i = 0; i < gfbmdl.materialsLength(); i++) {
-            var rawMaterial = gfbmdl.materials(i);
-            var properties = new HashMap<String, Object>();
-            var textures = new ArrayList<ApiTexture>();
-            var materialName = rawMaterial.name();
-            var shader = Objects.requireNonNull(rawMaterial.shaderGroup(), "Null shader name");
-            properties.put("shader", shader);
+        if(joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
+            var current = joints.get(0).getParent();
 
-            for (int j = 0; j < rawMaterial.common().valuesLength(); j++) {
-                var property = rawMaterial.common().values(j);
-                properties.put(property.name(), property.value());
+            while (current != null) {
+                joints.add((DefaultNodeModel) current);
+
+                if(current.getName().equals("Origin")) {
+                    current = null;
+                } else {
+                    current = current.getParent();
+                }
             }
 
-            for (int j = 0; j < rawMaterial.valuesLength(); j++) {
-                var property = rawMaterial.values(j);
-                properties.put(property.name(), property.value());
+            if(joints.stream().map(a -> a.getName()).noneMatch(a -> a.equals("Origin"))) {
+                throw new RuntimeException("Origin bone must exist!");
+            }
+        }
+
+        if(IMCT.messWithTexture) {
+
+            for (int i = 0; i < gfbmdl.materialsLength(); i++) {
+                var material = gfbmdl.materials(i);
+                var properties = new HashMap<String, Object>();
+                var textures = new ArrayList<ApiTexture>();
+                var materialName = material.name();
+                var shader = Objects.requireNonNull(material.shaderGroup(), "Null shader name");
+                properties.put("shader", shader);
+                properties.put("type", "solid");
+
+                for (int j = 0; j < material.common().valuesLength(); j++) {
+                    var property = material.common().values(j);
+                    properties.put(property.name(), property.value());
+                }
+
+                for (int j = 0; j < material.valuesLength(); j++) {
+                    var property = material.values(j);
+                    properties.put(property.name(), property.value());
+                }
+
+                for (int j = 0; j < material.common().colorsLength(); j++) {
+                    var property = material.common().colors(j);
+                    properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
+                }
+
+                for (int j = 0; j < material.colorsLength(); j++) {
+                    var property = material.colors(j);
+                    properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
+                }
+
+                for (int j = 0; j < material.textureMapsLength(); j++) {
+                    var rawTexture = material.textureMaps(j);
+                    var texName = gfbmdl.textureNames(rawTexture.index());
+                    textures.add(new ApiTexture(processTextureName(rawTexture), modelDir.resolve(texName + ".png").toAbsolutePath().toString()));
+                }
+
+                materialIds.put(i, materialName);
+                var material1 = materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
+                        key,
+                        textures,
+                        properties
+                ));
+                var texture = material1.getTexture("BaseColorMap");
+
+                materials.computeIfAbsent("rare", mat -> new HashMap<>()).put(materialName, new ApiMaterial(
+                        materialName,
+                        textures.stream().map(a -> new ApiTexture(a.type(), a.filePath().replace(".png", "_rare.png"))).toList(),
+                        properties
+                ));
             }
 
-            for (int j = 0; j < rawMaterial.common().colorsLength(); j++) {
-                var property = rawMaterial.common().colors(j);
-                properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
-            }
+            materials.forEach(new BiConsumer<String, Map<String, ApiMaterial>>() {
+                @Override
+                public void accept(String s, Map<String, ApiMaterial> map) {
+                    var shiny = s.equals("rare") ? "" : "shiny_";
 
-            for (int j = 0; j < rawMaterial.colorsLength(); j++) {
-                var property = rawMaterial.colors(j);
-                properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
-            }
+                    map.values().stream().map(a -> new GlbReader.Pair<>(a.getTexture("BaseColorMap"), a.getTexture("LyBaseColorMap"))).forEach(pair -> {
+                        var base = Path.of(pair.left().filePath());
 
-            for (int j = 0; j < rawMaterial.textureMapsLength(); j++) {
-                var rawTexture = rawMaterial.textureMaps(j);
-                var texName = gfbmdl.textureNames(rawTexture.index());
-                textures.add(new ApiTexture(processTextureName(rawTexture), modelDir.resolve(texName + ".png").toAbsolutePath().toString()));
-            }
+                        if (pair.right() != null && pair.right().filePath().contains("Iris")) {
+                            var ly = Path.of(pair.right().filePath());
+                            top.setImage(base);
+                            bottom.setImage(ly);
+                            EyeTextureGenerator.generate(layerEyes.getInputData().get(), targetDir.resolve(base.getFileName()));
+                        } else if (pair.left().filePath().contains("Eye")) {
+                            top.setImage(base);
+                            EyeTextureGenerator.generate(eyes.getInputData().get(), targetDir.resolve(base.getFileName()));
+                        } else {
+                            top.setImage(base);
+                            EyeTextureGenerator.generate((pair.left().filePath().contains("Mouth") ? top : mirror).get(), targetDir.resolve(base.getFileName()));
+                        }
 
-            materialIds.put(i, materialName);
-//            materials.put(materialName, new ApiMaterial(
-//                    materialName,
-//                    textures,
-//                    properties
-//            ));
+
+//                    try {
+//                    input.setImage(path);
+
+//                        EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
+//                        Files.writeString(targetDir.resolve(path.getFileName().toString() + ".meta"), longboiMeta, StandardOpenOption.CREATE_NEW);
+
+//                    } catch (IOException e) {
+//                        System.out.println(e.toString());
+//                        throw new RuntimeException(e);
+//                    }
+                    });
+                }
+            });
         }
 
         for (int i = 0; i < gfbmdl.groupsLength(); i++) {
-            System.out.println("Processing Mesh " + i);
             var group = gfbmdl.groups(i);
             var name = gfbmdl.bones((int) group.boneIndex()).name();
             var meshGroup = gfbmdl.meshes((int) group.meshIndex());
             var vertexBuffer = meshGroup.dataAsByteBuffer();
+
+            var uvShift = name.toLowerCase().contains("eye") ? -0.125f : 0.0f;
 
             var attributes = new ArrayList<Attribute>();
             for (var j = 0; j < meshGroup.attributesLength(); j++)
@@ -178,9 +299,9 @@ public class LGModel extends Model {
                         }
                         case UV1 -> {
                             if (Objects.requireNonNull(attribute.format) == AttributeFormat.FLOAT) {
-                                var x = vertexBuffer.getFloat();
+                                var x = vertexBuffer.getFloat() + uvShift;
                                 var y = 1.0f - vertexBuffer.getFloat();
-                                uvs.add(processSmartLetsGoUvs(x, y));
+                                uvs.add(new Vector2f(x, y));
                             } else throw new RuntimeException("Unexpected uv format: " + attribute.format);
                         }
                         case UV2, UV3, UV4 -> {
@@ -191,10 +312,10 @@ public class LGModel extends Model {
                         }
                         case COLOR_1, COLOR_2, COLOR_3, COLOR_4 -> {
                             if (Objects.requireNonNull(attribute.format) == AttributeFormat.BYTE) {
+                                var w = vertexBuffer.get() & 0xFF;
                                 var x = vertexBuffer.get() & 0xFF;
                                 var y = vertexBuffer.get() & 0xFF;
                                 var z = vertexBuffer.get() & 0xFF;
-                                var w = vertexBuffer.get() & 0xFF;
                                 colors.add(new Vector4f(x, y, z, w));
                             } else throw new RuntimeException("Unexpected color format: " + attribute.format);
                         }
@@ -234,21 +355,32 @@ public class LGModel extends Model {
                 }
             }
 
+            var shiftedUV = new HashSet<Integer>();
+
             for (int j = 0; j < meshGroup.polygonsLength(); j++) {
-                System.out.println("Processing Sub-mesh " + j);
                 var mesh = meshGroup.polygons(j);
                 var indices = new ArrayList<Integer>();
                 for (var idx = 0; idx < mesh.facesLength(); idx++) indices.add(mesh.faces(idx));
-//                meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get(idToName(mesh.materialIndex())), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
+                var materialId = idToName(mesh.materialIndex());
+
+                if(materialId.toLowerCase().contains("eye")) {
+                    for (int k : indices) {
+                        if (!shiftedUV.contains(k)) {
+                            uvs.get(k).add(0.5f/2f, 0.0f);
+                            shiftedUV.add(k);
+                        }
+                    }
+                }
+
+                meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get("regular").get(materialId), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
             }
         }
     }
 
-    private Vector2f processSmartLetsGoUvs(float x, float y) {
-        x *= 2;
-        if(x > 1) x *= -1;
+    private void fillJoints(NodeModel root, List<NodeModel> jointMap) {
+        joints.add((DefaultNodeModel) root);
 
-        return new Vector2f(x, y);
+        root.getChildren().stream().filter(jointMap::contains).forEach(child -> fillJoints((DefaultNodeModel) child, jointMap));
     }
 
     private String idToName(long idx) {
