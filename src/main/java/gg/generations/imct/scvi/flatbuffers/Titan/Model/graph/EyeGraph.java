@@ -88,8 +88,10 @@ public class EyeGraph {
             path = modelDir.resolve(modelDir.getFileName().toString() + "_r_eye_msk.png");
         }
 
-        if(Files.notExists(path)) {
+        if(Files.notExists(path) && material.getTexture("HighLightMaskMap") != null) {
             path = Path.of(material.getTexture("HighLightMaskMap").filePath());
+        } else {
+            path = null;
         }
 
         mask.setImage(path);
