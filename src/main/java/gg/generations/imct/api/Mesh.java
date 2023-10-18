@@ -28,6 +28,8 @@ public record Mesh(
         List<Vector2f> uvs
 ) {
     public MeshPrimitiveBuilder create() {
+        if(boneIds.isEmpty()) return null;
+
         return MeshPrimitiveBuilder.create()
                 .setIntIndicesAsShort(IntBuffer.wrap(indices.stream().mapToInt(Integer::intValue).toArray())) // TODO: make it use int buffer if needed
                 .addNormals3D(toBuffer3(normals))

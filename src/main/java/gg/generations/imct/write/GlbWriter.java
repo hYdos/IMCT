@@ -85,7 +85,9 @@ public class GlbWriter {
                 min = Math.min(min,mesh.positions().stream().mapToDouble(a -> a.y).min().getAsDouble());
 
                 var meshModel = new DefaultMeshModel();
-                var meshPrimitiveModel = mesh.create().build();
+                var meshPrimitiveModel1 = mesh.create();
+                if(meshPrimitiveModel1 == null) continue;
+                 var meshPrimitiveModel = meshPrimitiveModel1.build();
 
                 meshModel.addMeshPrimitiveModel(meshPrimitiveModel);
                 meshModel.setName(mesh.name());
