@@ -1,6 +1,5 @@
 package gg.generations.imct.read.letsgo;
 
-import com.google.gson.GsonBuilder;
 import de.javagl.jgltf.model.NodeModel;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import gg.generations.imct.IMCT;
@@ -9,25 +8,17 @@ import gg.generations.imct.api.ApiTexture;
 import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.UvGenerate;
-import gg.generations.imct.read.scvi.SVModel;
-import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.*;
-import gg.generations.imct.read.swsh.SWSHModel;
 import gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.TextureMap;
 import gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Vector3;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeGraph;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.FIreGraph;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.MirrorNode;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.*;
 import gg.generations.imct.util.TrinityUtils;
 import gg.generations.imct.write.GlbReader;
 import org.joml.*;
 
-import java.awt.*;
-import java.awt.datatransfer.StringSelection;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
@@ -329,11 +320,17 @@ public class LGModel extends Model {
                             else throw new RuntimeException("Unexpected tangent format: " + attribute.format);
                         }
                         case UV1 -> {
-                            if (Objects.requireNonNull(attribute.format) == AttributeFormat.FLOAT) {
-                                var x = vertexBuffer.getFloat() + uvShift;
-                                var y = 1.0f - vertexBuffer.getFloat();
-                                uvs.add(new Vector2f(x, y));
-                            } else throw new RuntimeException("Unexpected uv format: " + attribute.format);
+                            switch (Objects.requireNonNull(attribute.format)) {
+                                case FLOAT -> {
+                                    var x = vertexBuffer.getFloat() + uvShift;
+                                    var y = 1.0f - vertexBuffer.getFloat();
+                                    uvs.add(new Vector2f(x, y));
+                                }
+                                case HALF_FLOAT -> {
+                                    uvs.add(TrinityUtils.readUVFloat(vertexBuffer));
+                                }
+                                default -> throw new RuntimeException("Unexpected uv format: " + attribute.format);
+                            }
                         }
                         case UV2, UV3, UV4 -> {
                             if (Objects.requireNonNull(attribute.format) == AttributeFormat.FLOAT) {
