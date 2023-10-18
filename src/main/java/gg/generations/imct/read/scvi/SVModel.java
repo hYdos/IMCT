@@ -1,6 +1,5 @@
 package gg.generations.imct.read.scvi;
 
-import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import gg.generations.imct.IMCT;
@@ -9,23 +8,40 @@ import gg.generations.imct.api.ApiTexture;
 import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.*;
+import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.Animaton.*;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeGraph;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.FIreGraph;
 import gg.generations.imct.util.TrinityUtils;
+import gg.generations.imct.write.GlbReader;
 import org.joml.*;
 
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.io.IOException;
+import java.lang.Math;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
-
-import static gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator.displayImage;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class SVModel extends Model {
+
+    record InitTrack() {}
+
+    record AnimTrack() {}
+
+    record MaterialTrack(Map<String, ArrayList<String>> animTracks) {}
+
+    record Track(Map<String, MaterialTrack> animation) {
+
+    }
+
 
     public SVModel(Path modelDir, Path targetDir) throws IOException {
         // Read Data
@@ -144,12 +160,56 @@ public class SVModel extends Model {
         processMaterials("regular", modelDir, targetDir, materials, materialRemap);
 
         // Process extra material variants (shiny)
-        var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt"))).material(0);
-        processMaterials(extraMaterials.name(), modelDir, targetDir, TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(extraMaterials.materialName(0), "Material name was null")))), null);
+
+        var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt")));
+
+        var matts = new HashMap<String, Map<String, Track> >();
+
+        for (int i = 0; i < extraMaterials.materialLength(); i++) {
+            var mtt = extraMaterials.material(i);
+
+            Map<String, Track> tracks = new HashMap<>();
+
+            IntStream.range(0, mtt.materialPropertiesLength())
+                    .mapToObj(mtt::materialProperties)
+                    .map(a -> TRACM.getRootAsTRACM(a.tracm().bytebufferAsByteBuffer()))
+                    .flatMap(a -> IntStream.range(0, a.tracksLength())
+                            .mapToObj(a::tracks)).forEach(a -> {
+                                var materialTracks = new HashMap<String, MaterialTrack>();
+
+                                IntStream.range(0, a.materialAnimation().materialTrackLength()).mapToObj(j -> a.materialAnimation().materialTrack(j)).forEach(trackMaterial -> {
+                                    var animTracks = IntStream.range(0, trackMaterial.animValuesLength()).mapToObj(trackMaterial::animValues).collect(Collectors.toMap(a1 -> a1.name(), a1 -> extractedColors(a1.list())));
+
+                                    materialTracks.put(trackMaterial.name(), new MaterialTrack(animTracks));
+                                });
+                                tracks.put(a.trackPath(), new Track(materialTracks));
+
+                    });
+
+            matts.put(mtt.name(), tracks);
+
+//            processMaterials(mtt.name(), modelDir, targetDir, TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(mtt.materialName(0), "Material name was null")))), null);
+        }
+
+        Map<String, Map<Integer, Map<String, Map<String, String>>>> MAP = new HashMap<>();
 
 
 
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(new GsonBuilder().setPrettyPrinting().create().toJson(this.materials)), null);
+        matts.forEach((type, meshMap) -> {
+            var typeMap = MAP.computeIfAbsent(type, a -> new HashMap<>());
+            meshMap.values().stream().map(Track::animation).forEach(track -> {
+                track.forEach((materialName, materialTrack) -> {
+                    materialTrack.animTracks().forEach((uniform, values) -> {
+                        for (int i = 0; i < values.size(); i++) {
+                            var value = values.get(i);
+                            typeMap.computeIfAbsent(i, a -> new HashMap<>()).computeIfAbsent(materialName, a -> new HashMap<>()).computeIfAbsent(uniform, a -> value);
+                        }
+                    });
+                });
+            });
+        });
+
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(new GsonBuilder().setPrettyPrinting().create().toJson(MAP)), null);
 
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
@@ -320,75 +380,92 @@ public class SVModel extends Model {
 
             var name1 = name.equals("rare") ? "shiny_" : "";
 
+            var properties1 = new HashMap<String, Object>();
+            properties1.put("type", "layered");
 
-            Path path;
+            IntStream.of(1, 2,3, 4).boxed().flatMap(a -> Stream.of("BaseColorLayer" + a, "EmissionIntensityLayer" + a, "EmissionColorLayer" + a)).forEach(s -> {
+                var obj = properties.get(s);
 
-            switch (shader) {
-                case "Eye":
-                case "EyeClearCoat":
-                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
+                properties1.put(s, obj instanceof Vector4f v ? color(v.x, v.y, v.z) : obj);
+            });
 
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
-
-                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
-                    list.putIfAbsent(materialName, mat);
+            ApiMaterial finalMat = mat;
+            var mat1 = new ApiMaterial(name, Stream.<String>of("BaseColorMap", "LayerMaskMap").map(finalMat::getTexture).collect(Collectors.toList()), properties1);
 
 
-/*
-                    if(!list.containsKey("eyes")) {
-                        path = targetDir.resolve(name1 + "eyes.png").toAbsolutePath();
+//            Path path;
 
-                        EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
-
-                        list.computeIfAbsent("eyes", key -> new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid")));
-                    }
-
-                    if (materialRemap != null) materialRemap.put(materialName, "eyes");
-*/
-
-                    continue;
-                case "Unlit":
-                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
-
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
-
-                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "unlit"));
-                    list.putIfAbsent(materialName, mat);
-
-                    continue;
-                case "Transparent":
-
-                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
-
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
-
-                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "transparent"));
-                    list.putIfAbsent(materialName, mat);
-
-                    continue;
-                case "SSSEffect":
-                case "Standard":
-                case "FresnelEffect":
-                case "SSS":
-                case "NonDirectional":
-                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
-
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
-
-                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
-                        list.putIfAbsent(materialName, mat);
-
+//            switch (shader) {
+//                case "Eye":
+//                case "EyeClearCoat":
+//                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
+//
+////                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
+//
+//                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
+//                    list.putIfAbsent(materialName, mat);
+//
+//
+///*
+//                    if(!list.containsKey("eyes")) {
+//                        path = targetDir.resolve(name1 + "eyes.png").toAbsolutePath();
+//
+//                        EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
+//
+//                        list.computeIfAbsent("eyes", key -> new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid")));
+//                    }
+//
 //                    if (materialRemap != null) materialRemap.put(materialName, "eyes");
+//*/
+//
+//                    continue;
+//                case "Unlit":
+//                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
+//
+//                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+//
+//                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "unlit"));
+//                    list.putIfAbsent(materialName, mat);
+//
+//                    continue;
+//                case "Transparent":
+//
+//                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
+//
+//                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+//
+//                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "transparent"));
+//                    list.putIfAbsent(materialName, mat);
+//
+//                    continue;
+//                case "SSSEffect":
+//                case "Standard":
+//                case "FresnelEffect":
+//                case "SSS":
+//                case "NonDirectional":
+//                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
+//
+//                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+//
+//                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "layer"));
+//                        list.putIfAbsent(materialName, mat);
+//
+////                    if (materialRemap != null) materialRemap.put(materialName, "eyes");
+//
+//
+//                    continue;
+//                case "InsideEmissionParallax":
+//                    break;
+//                case "FresnelBlend":
+//                    break;
+//            }
 
+            list.put(materialName, mat1);
 
-                    continue;
-                case "InsideEmissionParallax":
-                    break;
-                case "FresnelBlend":
-                    break;
-            }
-
-            list.put(materialName, mat);
+            var path = Path.of(mat1.getTexture("BaseColorMap").filePath());
+            EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
+            path = Path.of(mat1.getTexture("LayerMaskMap").filePath());
+            EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
 
             IMCT.TOTAL_SHADERS.add(shader);
         }
@@ -541,5 +618,31 @@ public class SVModel extends Model {
         public static IndexLayout get(int i) {
             return values()[i];
         }
+    }
+
+    private ArrayList<String> extractedColors(TrackMaterialChannels list) {
+        var reds = convert(list.red());
+        var greens = convert(list.green());
+        var blues = convert(list.blue());
+        var alphas = convert(list.alpha());
+
+        var colors = new ArrayList<String>();
+
+        for (int j = 0; j < reds.size(); j++) {
+            colors.add(color(reds.get(j), greens.get(j), blues.get(j)));
+        }
+
+        return colors;
+    }
+    private List<Float> convert(TrackMaterialValueList list) {
+        return IntStream.range(0, list.valuesLength()).mapToObj(list::values).map(a -> new GlbReader.Pair<>(a.time(), a.value())).sorted(Comparator.comparing(GlbReader.Pair::left)).map(GlbReader.Pair::right).toList();
+    }
+
+    public static String color(float red, float green, float blue) {
+        return Integer.toHexString(new Color((int) (rgbTosRGB(red) * 255), (int) (rgbTosRGB(green) * 255), (int) (rgbTosRGB(blue) * 255)).getRGB()).replaceFirst("ff", "#");
+    }
+
+    private static float rgbTosRGB(float value) {
+        return (float) Math.pow(value, 1/2.2);
     }
 }

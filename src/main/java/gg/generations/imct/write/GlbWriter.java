@@ -1,8 +1,6 @@
 package gg.generations.imct.write;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
+import com.google.gson.*;
 import de.javagl.jgltf.model.GltfConstants;
 import de.javagl.jgltf.model.creation.AccessorModels;
 import de.javagl.jgltf.model.creation.GltfModelBuilder;
@@ -14,6 +12,7 @@ import de.javagl.jgltf.model.io.Buffers;
 import de.javagl.jgltf.model.io.v2.GltfModelWriterV2;
 import gg.generations.imct.IMCT;
 import gg.generations.imct.api.ApiMaterial;
+import gg.generations.imct.api.ApiTexture;
 import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.scvi.ImageDisplayComponent;
@@ -100,7 +99,8 @@ public class GlbWriter {
 
             var scale = 1f/(max - min);
 
-            model.materials.get("regular").keySet().stream().map(s -> checkShiny(s, model, path)).reduce(CompletableFuture.completedFuture(null), (BiFunction<CompletableFuture<? extends Object>, Runnable, CompletableFuture<? extends Object>>) CompletableFuture::thenRun, CompletableFuture::allOf).join();
+//            model.materials.get("regular")
+//                    .keySet().stream().map(s -> checkShiny(s, model, path)).reduce(CompletableFuture.completedFuture(null), (BiFunction<CompletableFuture<? extends Object>, Runnable, CompletableFuture<? extends Object>>) CompletableFuture::thenRun, CompletableFuture::allOf).join();
 
 //            CompletableFuture.completedFuture(null).thenRun(checkShiny("eyes", model, path)).thenRun(checkShiny("fire", model, path)).join();
 
@@ -183,8 +183,28 @@ public class GlbWriter {
         materialsJson.forEach((material, name) -> {
             var json1 = new JsonObject();
 
-            json1.addProperty("type", (String) material.properties().get("type"));
-            json1.addProperty("texture", Path.of(material.getTexture("BaseColorMap").filePath()).getFileName().toString());
+            json1.addProperty("type", (String) material.properties().remove("type"));
+            var textures = new JsonObject();
+            material.textures().forEach(new Consumer<ApiTexture>() {
+                @Override
+                public void accept(ApiTexture apiTexture) {
+                    textures.addProperty(apiTexture.type(), Path.of(material.getTexture(apiTexture.type()).filePath()).getFileName().toString());
+                }
+            });
+
+            json1.add("textures", textures);
+
+            var props = new JsonObject();
+            material.properties().entrySet().forEach(new Consumer<Map.Entry<String, Object>>() {
+                @Override
+                public void accept(Map.Entry<String, Object> stringObjectEntry) {
+                    props.add(stringObjectEntry.getKey(), stringObjectEntry.getValue() instanceof String s ? new JsonPrimitive((String) stringObjectEntry.getValue()) : new JsonPrimitive((Float) stringObjectEntry.getValue()));
+                }
+            });
+
+            json1.add("props", props);
+
+
 
             jsonMaterials.add(name, json1);
         });

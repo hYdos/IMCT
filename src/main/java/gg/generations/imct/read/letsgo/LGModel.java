@@ -199,7 +199,7 @@ public class LGModel extends Model {
                     textures.add(new ApiTexture(processTextureName(rawTexture), modelDir.resolve(texName + ".png").toAbsolutePath().toString()));
                 }
 
-                if(materialName.toLowerCase().contains("fire")) {
+                if(materialName.toLowerCase().contains("fire") || materialName.toLowerCase().contains("smoke")) {
                     if(materialName.toLowerCase().contains("mask")) {
                         groupsToExclude.add(materialName);
                         continue;

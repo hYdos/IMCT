@@ -26,7 +26,7 @@ public class IMCT {
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0005\\pm0005_00_00"), SVModel::new, Paths.get("output/0005"));
 
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\smallbatch\\smallbatch\\pm0012_00"), SWSHModel::new, Paths.get("output\\blep\\pm0012_11"));
-        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0006\\pm0006\\pm0006_51"), LGModel::new, Paths.get("output\\blep1\\pm0006_51"));
+        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0493\\pm0493_11_00"), SVModel::new, Paths.get("output\\blep1\\pm0493_11_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_01_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_11_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_11_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_01_00"));
 

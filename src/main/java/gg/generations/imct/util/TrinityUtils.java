@@ -1,5 +1,6 @@
 package gg.generations.imct.util;
 
+import org.joml.Vector2f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 
@@ -22,6 +23,13 @@ public class TrinityUtils {
         var w = readHalfFloat(buf.getShort());
         return new Vector3f(x, y, z);
     }
+
+    public static Vector2f readUVFloat(ByteBuffer buf) {
+        var x = readHalfFloat(buf.getShort());
+        var y = 1 - readHalfFloat(buf.getShort());
+        return new Vector2f(x, y);
+    }
+
 
     public static Vector4f readRGBA16Float4(ByteBuffer buf) {
         var x = readHalfFloat(buf.getShort()); // Ignored. Maybe padding?
