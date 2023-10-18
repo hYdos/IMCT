@@ -8,6 +8,7 @@ import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.api.ApiTexture;
 import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
+import gg.generations.imct.read.UvGenerate;
 import gg.generations.imct.read.scvi.SVModel;
 import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.*;
 import gg.generations.imct.read.swsh.SWSHModel;
@@ -24,6 +25,7 @@ import org.joml.*;
 
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,6 +45,8 @@ public class LGModel extends Model {
     private static final InputNode layerEyes = layerEyes();
 
     private static final InputNode eyes = eyes();
+
+    private static final UvGenerate generator = new UvGenerate(512, 512);
 
     private static InputNode layerEyes() {
         var pupil = new MirrorNode().setMirrrLeft(true).setInput(new TileNode().setTiling(1, 4).setInput(bottom));
@@ -164,6 +168,9 @@ public class LGModel extends Model {
             }
         }
 
+        var uvMapsToGen = new HashSet<String>();
+        var groupsToExclude = new HashSet<String>();
+
         if(IMCT.messWithTexture) {
 
             for (int i = 0; i < gfbmdl.materialsLength(); i++) {
@@ -201,13 +208,33 @@ public class LGModel extends Model {
                     textures.add(new ApiTexture(processTextureName(rawTexture), modelDir.resolve(texName + ".png").toAbsolutePath().toString()));
                 }
 
+                if(materialName.toLowerCase().contains("fire")) {
+                    if(materialName.toLowerCase().contains("mask")) {
+                        groupsToExclude.add(materialName);
+                        continue;
+                    }
+
+                    uvMapsToGen.add(materialName);;
+
+                    properties.put("type", "unlit");
+
+                    materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
+                            key,
+                            List.of(new ApiTexture("BaseColorMap", materialName + ".png")),
+                            properties
+                    ));
+
+                    materialIds.put(i, materialName);
+
+                    continue;
+                }
+
                 materialIds.put(i, materialName);
-                var material1 = materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
+                materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
                         key,
                         textures,
                         properties
                 ));
-                var texture = material1.getTexture("BaseColorMap");
 
                 materials.computeIfAbsent("rare", mat -> new HashMap<>()).put(materialName, new ApiMaterial(
                         materialName,
@@ -222,6 +249,10 @@ public class LGModel extends Model {
                     var shiny = s.equals("rare") ? "" : "shiny_";
 
                     map.values().stream().map(a -> new GlbReader.Pair<>(a.getTexture("BaseColorMap"), a.getTexture("LyBaseColorMap"))).forEach(pair -> {
+                        if(pair.right() == null && uvMapsToGen.contains(pair.left().filePath().replace(".png", ""))) {
+                            return;
+                        }
+
                         var base = Path.of(pair.left().filePath());
 
                         if (pair.right() != null && pair.right().filePath().contains("Iris")) {
@@ -363,6 +394,13 @@ public class LGModel extends Model {
                 for (var idx = 0; idx < mesh.facesLength(); idx++) indices.add(mesh.faces(idx));
                 var materialId = idToName(mesh.materialIndex());
 
+                if(materialId == null) continue;
+
+                if(uvMapsToGen.contains(materialId)) {
+                    EyeTextureGenerator.generate(generator.generateUvMap(uvs, indices), targetDir.resolve(materialId + ".png"));
+                    uvMapsToGen.remove(materialId);
+                }
+
                 if(materialId.toLowerCase().contains("eye")) {
                     for (int k : indices) {
                         if (!shiftedUV.contains(k)) {
@@ -375,6 +413,10 @@ public class LGModel extends Model {
                 meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get("regular").get(materialId), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
             }
         }
+    }
+
+    private BufferedImage generateUvMap(ArrayList<Vector2f> uvs, ArrayList<Integer> indices) {
+        return null;
     }
 
     private void fillJoints(NodeModel root, List<NodeModel> jointMap) {
