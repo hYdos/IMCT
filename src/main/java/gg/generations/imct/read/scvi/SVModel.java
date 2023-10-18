@@ -371,6 +371,9 @@ public class SVModel extends Model {
                 case "FresnelEffect":
                 case "SSS":
                 case "NonDirectional":
+                case "InsideEmissionParallax":
+                case "FresnelBlend":
+
                     path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
 
                     if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
@@ -382,10 +385,6 @@ public class SVModel extends Model {
 
 
                     continue;
-                case "InsideEmissionParallax":
-                    break;
-                case "FresnelBlend":
-                    break;
             }
 
             list.put(materialName, mat);
