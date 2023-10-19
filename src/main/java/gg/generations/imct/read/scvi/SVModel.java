@@ -1,6 +1,5 @@
 package gg.generations.imct.read.scvi;
 
-import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import gg.generations.imct.IMCT;
@@ -18,12 +17,11 @@ import org.joml.*;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.io.IOException;
+import java.lang.Math;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
-
-import static gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator.displayImage;
 
 public class SVModel extends Model {
 
@@ -166,12 +164,16 @@ public class SVModel extends Model {
 
 
                 var attributes = new ArrayList<Attribute>();
+
                 for (var j = 0; j < rawAttributes.attrsLength(); j++) {
                     attributes.add(new Attribute(
                             AttributeType.get(rawAttributes.attrs(j).attribute()),
                             AttributeSize.get(rawAttributes.attrs(j).type())
                     ));
                 }
+
+//                var texCoords = attributes.stream().filter(a -> a.type == AttributeType.TEXCOORD).max(Comparator.comparing(a -> a.layer)).get().layer;
+
 
                 var indices = new ArrayList<Integer>();
                 var positions = new ArrayList<Vector3f>();
@@ -182,6 +184,9 @@ public class SVModel extends Model {
                 var boneIds = new ArrayList<Vector4i>();
                 var binormals = new ArrayList<Vector3f>();
                 var uvs = new ArrayList<Vector2f>();
+                var uvs2 = new ArrayList<Vector2f>();
+                var uvs3 = new ArrayList<Vector2f>();
+                var uvs4 = new ArrayList<Vector2f>();
 
                 var realIdxBuffer = idxBuffer.bufferAsByteBuffer();
                 for (var j = 0; j < idxBuffer.bufferLength() / idxLayout.size; j++) {
@@ -194,7 +199,11 @@ public class SVModel extends Model {
 
                 var vertexCount = data.vertexBuffer(0).bufferLength() / info.attributes(0).size(0).size();
 
+                int maxUvLayer = 0;
+
                 for (var j = 0; j < vertexCount; j++) {
+                    int uvLayer = 0;
+
                     for (var attribute : attributes) {
                         switch (attribute.type) {
                             case POSITION -> {
@@ -234,9 +243,21 @@ public class SVModel extends Model {
 
                             case TEXCOORD -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RG_32_FLOAT) {
+
+                                    maxUvLayer = Math.max(uvLayer, maxUvLayer);
+
                                     var x = vertexBuffer.getFloat();
-                                    var y = 1.0f - vertexBuffer.getFloat();
-                                    uvs.add(new Vector2f(x, y));
+                                    var y = (1.0f - vertexBuffer.getFloat());
+                                    var uv = new Vector2f(x, y);
+
+                                    (switch (uvLayer) {
+                                        case 1 -> uvs2;
+                                        case 2 -> uvs3;
+                                        case 3 -> uvs4;
+                                        default -> uvs;
+                                    }).add(uv);
+                                    uvLayer++;
+
                                 } else throw new RuntimeException("Unexpected uv format: " + attribute.type);
                             }
 
@@ -268,7 +289,27 @@ public class SVModel extends Model {
                     var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
                     if (!Objects.requireNonNull(info.meshName()).contains("lod")) {
                         var name = materialRemap.getOrDefault(subMesh.materialName(), subMesh.materialName());
-                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), this.materials.get("regular").get(name), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
+
+                        System.out.println(name + " " + subMesh.shUnk3() + " " + subMesh.shUnk4());
+
+                        int usedUvLayer = 0;
+
+                        if(maxUvLayer > 0) {
+
+                            var namesplit = name.split("_");
+
+                            usedUvLayer = Integer.getInteger(namesplit[namesplit.length - 1], 0);
+                        }
+
+                        var usedUv = (switch (usedUvLayer) {
+                            case 1 -> uvs2;
+                            case 2 -> uvs3;
+                            case 3 -> uvs4;
+                            default -> uvs;
+                        });
+
+                        var material = this.materials.get("regular").get(name);
+                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), this.materials.get("regular").get(name), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, usedUv));
                     }
                 }
             }
@@ -328,7 +369,7 @@ public class SVModel extends Model {
                 case "EyeClearCoat":
                     path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
 
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
+                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir, targetDir), path);
 
                     mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
                     list.putIfAbsent(materialName, mat);
@@ -350,9 +391,10 @@ public class SVModel extends Model {
                 case "Unlit":
                     path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
 
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir, targetDir), path);
 
-                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "unlit"));
+                    properties.put("type", "unlit");
+                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), properties);
                     list.putIfAbsent(materialName, mat);
 
                     continue;
@@ -360,9 +402,10 @@ public class SVModel extends Model {
 
                     path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
 
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir, targetDir), path);
 
-                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "transparent"));
+                    properties.put("type", "transparent");
+                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), properties);
                     list.putIfAbsent(materialName, mat);
 
                     continue;
@@ -376,9 +419,10 @@ public class SVModel extends Model {
 
                     path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
 
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir, targetDir), path);
 
-                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
+                    properties.put("type", "solid");
+                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), properties);
                         list.putIfAbsent(materialName, mat);
 
 //                    if (materialRemap != null) materialRemap.put(materialName, "eyes");
@@ -395,7 +439,7 @@ public class SVModel extends Model {
 
     public static EyeGraph SV_EYE = new EyeGraph(256);
 
-    public static FIreGraph SV_BODY = new FIreGraph(1080);
+    public static EyeGraph SV_BODY = new EyeGraph(1024, true);
     private static FIreGraph SV_FIRE = new FIreGraph(256);
 
     protected void processEyes(String k, Map<String, ApiMaterial> materials, Path modelDir, Path targetDir) {
@@ -412,7 +456,7 @@ public class SVModel extends Model {
         var name = k.equals("rare") ? "shiny_" : "";
 
         var eyes = new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", modelDir.resolve(name + "eyes.png").toAbsolutePath().toString())), new HashMap<>());
-        var image = SV_EYE.update(left_eye, modelDir);
+        var image = SV_EYE.update(left_eye, modelDir, null);
         EyeTextureGenerator.generate(image, targetDir.resolve(name + "eyes.png").toAbsolutePath());
         materials.put("eyes", eyes);
 
