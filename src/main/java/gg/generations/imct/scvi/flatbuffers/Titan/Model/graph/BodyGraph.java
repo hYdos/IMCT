@@ -3,7 +3,7 @@ package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph;
 import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.composite.Composites;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.ChannelSplitterNode;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.CompositeNode;
+import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.CompositeNode1;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.TextureNode;
 import org.joml.Vector4f;
 
@@ -11,7 +11,7 @@ import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 
 public class BodyGraph {
-    private final CompositeNode output;
+    private final CompositeNode1 output;
     private final EyeGraph.LayersNode base;
     private final EyeGraph.LayersNode emission;
     private MaskNode baseColor1;
@@ -66,7 +66,7 @@ public class BodyGraph {
                 emissionColor4.setMask(lymSplit.getAlphaChannel())
         );
 
-        output = new CompositeNode().setComposite(Composites.SCREEN).setBottom(base).setTop(emission);
+        output = new CompositeNode1().setComposite(Composites.SCREEN).setBottom(base).setTop(emission);
     }
 
     public BufferedImage update(ApiMaterial material) {

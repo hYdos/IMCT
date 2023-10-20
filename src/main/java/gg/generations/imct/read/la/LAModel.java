@@ -19,11 +19,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 
-import static gg.generations.imct.read.scvi.SVModel.SV_BODY;
-import static gg.generations.imct.read.scvi.SVModel.SV_EYE;
-
 public class LAModel extends Model {
-    public static EyeGraph SV_EYE = new EyeGraph(128);
+    public static EyeGraph SV_EYE = new EyeGraph();
     public static FIreGraph SV_BODY = new FIreGraph(512);
     private static FIreGraph SV_FIRE = new FIreGraph(128);
 
@@ -325,7 +322,7 @@ public class LAModel extends Model {
         }
     }
 
-    private static EyeGraph ARCEUS = new EyeGraph(128);
+    private static EyeGraph ARCEUS = new EyeGraph();
 
     private static BodyGraph ARCEUS_BODY = new BodyGraph(512);
 

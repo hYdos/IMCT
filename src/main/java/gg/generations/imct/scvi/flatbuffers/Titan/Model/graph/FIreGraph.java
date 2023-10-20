@@ -6,14 +6,11 @@ import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.composite.Composit
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.*;
 import org.joml.Vector4f;
 
-import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 
 public class FIreGraph {
-    private final CompositeNode output;
+    private final CompositeNode1 output;
     private final LayersNode base;
     private final LayersNode emission;
     private final ScaleNode lymScale;
@@ -66,7 +63,7 @@ public class FIreGraph {
                 emissionColor4.setMask(lymSplit.getAlphaChannel())
         );
 
-        output = new CompositeNode().setComposite(Composites.SCREEN).setBottom(base).setTop(emission);
+        output = new CompositeNode1().setComposite(Composites.SCREEN).setBottom(base).setTop(emission);
     }
 
     public BufferedImage update(ApiMaterial material, Path modelDir) {
@@ -102,7 +99,7 @@ public class FIreGraph {
             baseColor4.setColor(vec.x, vec.y, vec.z);
         else baseColor4.resetColor();
 
-        emissionColor1.resetColor().resetIntensity();
+//        emissionColor1.resetColor().resetIntensity();
 
         if (material.properties().get("EmissionColorLayer1") instanceof Vector4f vec)
             emissionColor1.setColor(vec.x, vec.y, vec.z);
@@ -129,6 +126,8 @@ public class FIreGraph {
 //        if (material.properties().get("EmissionIntensityLayer4") instanceof Float vec)
 //            emissionColor4.setIntensity(vec);
 //        else emissionColor4.resetIntensity();
+
+        display();
 
         return output.get();
 

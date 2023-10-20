@@ -238,7 +238,7 @@ public class EyeTextureGenerator {
             }
 
             ImageIO.write(image, "png", path.toFile());
-        } catch (IOException | IllegalArgumentException e) {
+        } catch (Exception e) {
             System.out.println("Failed to generate: " + path);
             e.printStackTrace();
         }

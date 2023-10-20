@@ -19,6 +19,14 @@ public abstract class BaseNode implements InputNode, InputData, ChangeListener {
     }
 
     @Override
+    public int getColor(float x, float y) {
+        int scaledWidth = (int) (x * image.getWidth());
+        int scaledHeight = (int) (y * image.getHeight());
+
+        return image.getRGB(scaledWidth, scaledHeight);
+    }
+
+    @Override
     public InputData getInputData() {
         return this;
     }

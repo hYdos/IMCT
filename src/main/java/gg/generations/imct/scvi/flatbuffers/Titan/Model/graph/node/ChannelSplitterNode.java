@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ChannelSplitterNode implements InputNode, ChangeListener {
-    private InputNode input;
+    private InputNode input = InputNode.DEFAULT;
     private final ChannelNode redChannel = new ChannelNode();
     private final ChannelNode greenChannel = new ChannelNode();
     private final ChannelNode blueChannel = new ChannelNode();
@@ -47,7 +47,7 @@ public class ChannelSplitterNode implements InputNode, ChangeListener {
 
     @Override
     public InputData getInputData() {
-        return null;
+        return input.getInputData();
     }
 
     @Override
@@ -86,6 +86,12 @@ public class ChannelSplitterNode implements InputNode, ChangeListener {
 
         @Override
         protected void process() {}
+
+        @Override
+        public int getColor(float x, float y) {
+            var val = super.getColor(x, y);
+            return val & 0xff;
+        }
 
         public void setImage(BufferedImage image) {
             this.image = image;

@@ -8,6 +8,8 @@ public interface InputData {
 
     BufferedImage get();
 
+    public int getColor(float x, float y);
+
     default void display(String name) {
         Nodes.displayImage(get(), name);
     }

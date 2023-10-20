@@ -1,10 +1,8 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph;
 
 import gg.generations.imct.api.ApiMaterial;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.composite.Composites;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.BaseNode;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.ChannelSplitterNode;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.CompositeNode;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.InputNode;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.TextureNode;
 import org.joml.Vector4f;
@@ -16,19 +14,29 @@ import java.nio.file.Path;
 import java.util.Arrays;
 
 public class EyeGraph {
-    private final LayersNode output;
-    private final LayersNode base;
-    private final LayersNode emission;
-    private MaskNode baseColor1;
-    private MaskNode baseColor2;
-    private MaskNode baseColor3;
-    private MaskNode baseColor4;
+    private CompositeNode output;
+    private CompositeNode base;
+    private InputNode maskGray;
 
-    private MaskNode emissionColor1;
-    private MaskNode emissionColor2;
-    private MaskNode emissionColor3;
-    private MaskNode emissionColor4;
-    private MaskNode emissionColor5;
+    private MixNode baseMix1;
+    private MixNode baseMix2;
+    private MixNode baseMix3;
+    private MixNode baseMix4;
+    private MixNode emMix1;
+    private MixNode emMix2;
+    private MixNode emMix3;
+    private MixNode emMix4;
+
+    private ColorNode baseColor1;
+    private ColorNode baseColor2;
+    private ColorNode baseColor3;
+    private ColorNode baseColor4;
+
+    private ColorNode emissionColor1;
+    private ColorNode emissionColor2;
+    private ColorNode emissionColor3;
+    private ColorNode emissionColor4;
+    private ColorNode emissionColor5;
 
     private TextureNode lym = new TextureNode();
 
@@ -36,62 +44,67 @@ public class EyeGraph {
     private TextureNode mask = new TextureNode();
 
     private ChannelSplitterNode lymSplit = new ChannelSplitterNode();
+    private ConstantFacFunction emissionIntensity1 = new ConstantFacFunction();
+    private ConstantFacFunction emissionIntensity2 = new ConstantFacFunction();
+    private ConstantFacFunction emissionIntensity3 = new ConstantFacFunction();
+    private ConstantFacFunction emissionIntensity4 = new ConstantFacFunction();
 
-    public EyeGraph(int scale) {
-        baseColor1 = new MaskNode();
-        baseColor2 = new MaskNode();
-        baseColor3 = new MaskNode();
-        baseColor4 = new MaskNode();
-        emissionColor1 = new MaskNode();
-        emissionColor2 = new MaskNode();
-        emissionColor3 = new MaskNode();
-        emissionColor4 = new MaskNode();
-        emissionColor5 = new MaskNode();
+    public EyeGraph() {
+        lymSplit.setInput(lym);
 
-        var lymScale = new ScaleNode().setScale(scale).setInput(lym);
+        var lymRed = new ImageFacFunction(lymSplit.getRedChannel());
+        var lymGreen = new ImageFacFunction(lymSplit.getGreenChannel());
+        var lymBlue = new ImageFacFunction(lymSplit.getBlueChannel());
+        var lymAlpha = new ImageFacFunction(lymSplit.getAlphaChannel());
 
-        var maskScale = new ScaleNode().setScale(scale).setInput(mask);
+        baseColor1 = new ColorNode();
+        baseColor2 = new ColorNode();
+        baseColor3 = new ColorNode();
+        baseColor4 = new ColorNode();
+        emissionColor1 = new ColorNode();
+        emissionColor2 = new ColorNode();
+        emissionColor3 = new ColorNode();
+        emissionColor4 = new ColorNode();
+        emissionColor5 = new ColorNode();
 
-        lymSplit.setInput(lymScale);
+        var scaleAlb = new ScaleNode().setInput(alb).setScale(lymSplit);
 
 
+        baseMix1 = new MixNode(scaleAlb, baseColor1, lymRed);
+        baseMix2 = new MixNode(baseMix1, baseColor2, lymGreen);
+        baseMix3 = new MixNode(baseMix2, baseColor3, lymBlue);
+        baseMix4 = new MixNode(baseMix3, baseColor4, lymAlpha);
 
-        var baseLayer = new ScaleNode().setScale(scale).setInput(alb);
 
-        base = new LayersNode(
-                baseLayer,
-                baseColor1.setMask(lymSplit.getRedChannel()),
-                baseColor2.setMask(lymSplit.getGreenChannel()),
-                baseColor3.setMask(lymSplit.getBlueChannel()),
-                baseColor4.setMask(lymSplit.getAlphaChannel())
-        );
+        emMix1 = new MixNode(scaleAlb, baseColor1, emissionIntensity1);
+        emMix2 = new MixNode(emMix1, baseColor2, emissionIntensity2);
+        emMix3 = new MixNode(emMix2, baseColor3, emissionIntensity3);
+        emMix4 = new MixNode(emMix3, baseColor4, emissionIntensity4);
+        base = new MixNode(baseMix4, emMix4, new ConstantFacFunction());
 
-        emission = new LayersNode(
-                baseLayer,
-                emissionColor1.setMask(lymSplit.getRedChannel()),
-                emissionColor2.setMask(lymSplit.getGreenChannel()),
-                emissionColor3.setMask(lymSplit.getBlueChannel()),
-                emissionColor4.setMask(lymSplit.getAlphaChannel())
-        );
+        maskGray = new ChannelSplitterNode().setInput(mask).getRedChannel();
 
-        output = new LayersNode(new CompositeNode().setComposite(Composites.SCREEN).setBottom(base).setTop(emission), emissionColor5.setMask(new GrayScaleNode().setInput(maskScale)));
+        output = new MixNode(base, emissionColor5, new ImageFacFunction(maskGray));
     }
 
     public BufferedImage update(ApiMaterial material, Path modelDir) {
+        return update(material, modelDir, null);
+    }
+
+    public BufferedImage update(ApiMaterial material, Path modelDir, Path targetPath) {
         alb.setImage(Path.of(material.getTexture("BaseColorMap").filePath()));
+        if(material.getTexture("LayerMaskMap") == null) return alb.get();
         lym.setImage(Path.of(material.getTexture("LayerMaskMap").filePath()));
 
 
-        var path = modelDir.resolve(modelDir.getFileName().toString() + "_eye_msk.png");
+        var path = modelDir.resolve(material.getTexture("BaseColorMap").filePath().replace("_alb.png", "").toString() + "_msk.png");
 
-        if(Files.notExists(path)) {
-            path = modelDir.resolve(modelDir.getFileName().toString() + "_r_eye_msk.png");
-        }
-
-        if(Files.notExists(path) && material.getTexture("HighLightMaskMap") != null) {
-            path = Path.of(material.getTexture("HighLightMaskMap").filePath());
-        } else {
-            path = null;
+        if (Files.notExists(path)) {
+            if (material.getTexture("HighLightMaskMap") != null) {
+                path = Path.of(material.getTexture("HighLightMaskMap").filePath());
+            } else {
+                path = null;
+            }
         }
 
         mask.setImage(path);
@@ -116,16 +129,16 @@ public class EyeGraph {
         if(material.properties().get("EmissionColorLayer5") instanceof Vector4f vec) emissionColor5.setColor(vec.x, vec.y, vec.z);
         else emissionColor5.resetColor();
 
-        if(material.properties().get("EmissionIntensityLayer1") instanceof Float intensity) emissionColor1.setIntensity(intensity);
-        else emissionColor1.resetIntensity();
-        if(material.properties().get("EmissionIntensityLayer2") instanceof Float intensity) emissionColor2.setIntensity(intensity);
-        else emissionColor2.resetIntensity();
-        if(material.properties().get("EmissionIntensityLayer3") instanceof Float intensity) emissionColor3.setIntensity(intensity);
-        else emissionColor3.resetIntensity();
-        if(material.properties().get("EmissionIntensityLayer4") instanceof Float intensity) emissionColor4.setIntensity(intensity);
-        else emissionColor4.resetIntensity();
-        if(material.properties().get("EmissionIntensityLayer5") instanceof Float intensity) emissionColor5.setIntensity(intensity);
-        else emissionColor5.resetIntensity();
+        if(material.properties().get("EmissionIntensityLayer1") instanceof Float intensity) emissionIntensity1.setValue(intensity);
+        else emissionIntensity1.resetValue();
+        if(material.properties().get("EmissionIntensityLayer2") instanceof Float intensity) emissionIntensity2.setValue(intensity);
+        else emissionIntensity2.resetValue();
+        if(material.properties().get("EmissionIntensityLayer3") instanceof Float intensity) emissionIntensity3.setValue(intensity);
+        else emissionIntensity3.resetValue();
+        if(material.properties().get("EmissionIntensityLayer4") instanceof Float intensity) emissionIntensity4.setValue(intensity);
+        else emissionIntensity4.resetValue();
+
+        if(targetPath != null) display(material, targetPath);
 
         return output.get();
     }
@@ -160,34 +173,52 @@ public class EyeGraph {
         return new MaskNode().setMask(mask).setColor(color.getRed(), color.getGreen(), color.getBlue());
     }
 
-    public static class GrayScaleNode extends BaseNode {
-        private InputNode input = DEFAULT;
+    public void display(ApiMaterial material, Path targetPath) {
+        EyeTextureGenerator.generate(output.get(), targetPath.resolve(Path.of("debug", material.name(), "output.png")));
+        EyeTextureGenerator.generate(baseMix1.get(), targetPath.resolve(Path.of("debug", material.name(), "baseMix1.png")));
+        EyeTextureGenerator.generate(baseMix2.get(), targetPath.resolve(Path.of("debug", material.name(), "baseMix2.png")));
+        EyeTextureGenerator.generate(baseMix3.get(), targetPath.resolve(Path.of("debug", material.name(), "baseMix3.png")));
+        EyeTextureGenerator.generate(baseMix4.get(), targetPath.resolve(Path.of("debug", material.name(), "baseMix4.png")));
+        EyeTextureGenerator.generate(emMix1.get(), targetPath.resolve(Path.of("debug", material.name(), "emMix1.png")));
+        EyeTextureGenerator.generate(emMix2.get(), targetPath.resolve(Path.of("debug", material.name(), "emMix2.png")));
+        EyeTextureGenerator.generate(emMix3.get(), targetPath.resolve(Path.of("debug", material.name(), "emMix3.png")));
+        EyeTextureGenerator.generate(emMix4.get(), targetPath.resolve(Path.of("debug", material.name(), "emMix4.png")));
 
-        @Override
-        protected void process() {
-            image = Nodes.grayScaleToColor(input.getInputData().get());
-        }
+        EyeTextureGenerator.generate(base.get(), targetPath.resolve(Path.of("debug", material.name(), "base.png")));
+        EyeTextureGenerator.generate(mask.get(), targetPath.resolve(Path.of("debug", material.name(), "mask.png")));
+        EyeTextureGenerator.generate(maskGray.getInputData().get(), targetPath.resolve(Path.of("debug", material.name(), "maskGray.png")));
 
-        public GrayScaleNode setInput(InputNode input) {
-            this.input = input;
-            input.addChangeListener(this);
-            update();
-            return this;
-        }
+        EyeTextureGenerator.generate(baseColor1.get(), targetPath.resolve(Path.of("debug", material.name(), "baseColor1.png")));
+        EyeTextureGenerator.generate(baseColor2.get(), targetPath.resolve(Path.of("debug", material.name(), "baseColor2.png")));
+        EyeTextureGenerator.generate(baseColor3.get(), targetPath.resolve(Path.of("debug", material.name(), "baseColor3.png")));
+        EyeTextureGenerator.generate(baseColor4.get(), targetPath.resolve(Path.of("debug", material.name(), "baseColor4.png")));
+        EyeTextureGenerator.generate(emissionColor1.get(), targetPath.resolve(Path.of("debug", material.name(), "emissionColor1.png")));
+        EyeTextureGenerator.generate(emissionColor2.get(), targetPath.resolve(Path.of("debug", material.name(), "emissionColor2.png")));
+        EyeTextureGenerator.generate(emissionColor3.get(), targetPath.resolve(Path.of("debug", material.name(), "emissionColor3.png")));
+        EyeTextureGenerator.generate(emissionColor4.get(), targetPath.resolve(Path.of("debug", material.name(), "emissionColor4.png")));
+        EyeTextureGenerator.generate(emissionColor5.get(), targetPath.resolve(Path.of("debug", material.name(), "emissionColor5.png")));
+        EyeTextureGenerator.generate(lymSplit.getRedChannel().getInputData().get(), targetPath.resolve(Path.of("debug", material.name(), "lymRed.png")));
+        EyeTextureGenerator.generate(lymSplit.getGreenChannel().getInputData().get(), targetPath.resolve(Path.of("debug", material.name(), "lymGreen.png")));
+        EyeTextureGenerator.generate(lymSplit.getBlueChannel().getInputData().get(), targetPath.resolve(Path.of("debug", material.name(), "lymBlue.png")));
+        EyeTextureGenerator.generate(lymSplit.getAlphaChannel().getInputData().get(), targetPath.resolve(Path.of("debug", material.name(), "lymAlpha.png")));
     }
 
-    public void display() {
-        EyeTextureGenerator.displayImage(output.get(), "output");
-        EyeTextureGenerator.displayImage(base.get(), "base");
-        EyeTextureGenerator.displayImage(emission.get(), "emission");
-        EyeTextureGenerator.displayImage(baseColor1.get(), "baseColor1");
-        EyeTextureGenerator.displayImage(baseColor2.get(), "baseColor2");
-        EyeTextureGenerator.displayImage(baseColor3.get(), "baseColor3");
-        EyeTextureGenerator.displayImage(baseColor4.get(), "baseColor4");
-        EyeTextureGenerator.displayImage(emissionColor1.get(), "emissionColor1");
-        EyeTextureGenerator.displayImage(emissionColor2.get(), "emissionColor2");
-        EyeTextureGenerator.displayImage(emissionColor3.get(), "emissionColor3");
-        EyeTextureGenerator.displayImage(emissionColor4.get(), "emissionColor4");
-        EyeTextureGenerator.displayImage(emissionColor5.get(), "emissionColor5");
+    class ConstantFacFunction implements FacFunction {
+        private float value = 0;
+
+        public ConstantFacFunction setValue(float value) {
+            this.value = value;
+            return this;
+        }
+
+        public ConstantFacFunction resetValue() {
+            setValue(0);
+            return this;
+        }
+
+        @Override
+        public float fac(float x, float y) {
+            return value;
+        }
     }
 }

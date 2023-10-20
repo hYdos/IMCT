@@ -437,9 +437,9 @@ public class SVModel extends Model {
         }
     }
 
-    public static EyeGraph SV_EYE = new EyeGraph(256);
+    public static EyeGraph SV_EYE = new EyeGraph();
 
-    public static EyeGraph SV_BODY = new EyeGraph(1024, true);
+    public static EyeGraph SV_BODY = new EyeGraph();
     private static FIreGraph SV_FIRE = new FIreGraph(256);
 
     protected void processEyes(String k, Map<String, ApiMaterial> materials, Path modelDir, Path targetDir) {
@@ -456,7 +456,7 @@ public class SVModel extends Model {
         var name = k.equals("rare") ? "shiny_" : "";
 
         var eyes = new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", modelDir.resolve(name + "eyes.png").toAbsolutePath().toString())), new HashMap<>());
-        var image = SV_EYE.update(left_eye, modelDir, null);
+        var image = SV_EYE.update(left_eye, modelDir);
         EyeTextureGenerator.generate(image, targetDir.resolve(name + "eyes.png").toAbsolutePath());
         materials.put("eyes", eyes);
 

@@ -24,7 +24,7 @@ public class PixelmonArchiveBuilder {
                 Files.createFile(output);
             }
 
-            files = files.stream().filter(path -> !(path.toString().endsWith("fbx") || path.toString().endsWith("dae"))).toList();
+            files = files.stream().filter(path -> !(path.toString().endsWith("fbx") || path.toString().endsWith("dae") || path.toString().contains("debug"))).toList();
 
             try (var xzWriter = new XZOutputStream(Files.newOutputStream(output), OPTIONS)) {
                 try (var tarWriter = new TarArchiveOutputStream(xzWriter)) {

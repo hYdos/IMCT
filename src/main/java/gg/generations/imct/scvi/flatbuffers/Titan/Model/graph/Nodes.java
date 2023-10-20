@@ -17,38 +17,50 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.awt.image.BufferedImage.TYPE_BYTE_GRAY;
+
 public class Nodes {
     public static BufferedImage DEFAULT_IMAGE = new BufferedImage(1,1, BufferedImage.TYPE_INT_ARGB);
 
-    public static EyeTextureGenerator.ChannelImages splitImageChannels(BufferedImage original) {
-        int width = original.getWidth();
-        int height = original.getHeight();
+    public static EyeTextureGenerator.ChannelImages splitImageChannels(BufferedImage originalImage) {
+        BufferedImage[] resultImages = new BufferedImage[4]; // Four grayscale images: R, G, B, A
 
-        BufferedImage[] resultImages = new BufferedImage[4];
+        int width = originalImage.getWidth();
+        int height = originalImage.getHeight();
 
-        // Create a ColorModel and WritableRaster for the result images
-        ColorModel colorModel = ColorModel.getRGBdefault();
-        WritableRaster[] rasters = new WritableRaster[4];
-        for (int i = 0; i < 4; i++) {
-            rasters[i] = colorModel.createCompatibleWritableRaster(width, height);
-        }
+        // Loop through each channel (R, G, B, A)
+        for (int channel = 0; channel < 4; channel++) {
+            resultImages[channel] = new BufferedImage(width, height, TYPE_BYTE_GRAY);
+            WritableRaster raster = resultImages[channel].getRaster();
 
-        // Split and transfer alpha channels
-        for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                for (int i = 0; i < 4; i++) {
-                    int newPixel = (process(original.getRGB(x, y), i) << 24) | (255 << 16) | (255 << 8) | 255; // White color
-                    rasters[i].setPixel(x, y, colorModel.getComponents(newPixel, null, 0));
+                for (int y = 0; y < height; y++) {
+                    int pixel = originalImage.getRGB(x, y);
+                    int value = 0;
+
+                    // Extract the desired channel's value (R, G, B, or A)
+                    switch (channel) {
+                        case 0: // Red channel
+                            value = (pixel >> 16) & 0xFF;
+                            break;
+                        case 1: // Green channel
+                            value = (pixel >> 8) & 0xFF;
+                            break;
+                        case 2: // Blue channel
+                            value = pixel & 0xFF;
+                            break;
+                        case 3: // Alpha channel
+                            value = (pixel >> 24) & 0xFF;
+                            break;
+                    }
+
+                    // Set the grayscale value for the channel
+                    raster.setSample(x, y, 0, value);
                 }
             }
         }
 
-        // Create result images from the rasters
-        for (int i = 0; i < 4; i++) {
-            resultImages[i] = new BufferedImage(colorModel, rasters[i], false, null);
-        }
-
-        return new EyeTextureGenerator.ChannelImages(resultImages[2], resultImages[1], resultImages[0], resultImages[3]);
+        return new EyeTextureGenerator.ChannelImages(resultImages[0], resultImages[1], resultImages[2], resultImages[3]);
     }
 
     private static int process(int pixel, int channel) {
@@ -73,29 +85,6 @@ public class Nodes {
         frame.setVisible(true);
     }
 
-    public static BufferedImage grayScaleToColor(BufferedImage original) {
-        int width = original != null ? original.getWidth() : 256;
-        int height = original != null ? original.getHeight() : 256;
-
-        BufferedImage resultImages;
-
-        // Create a ColorModel and WritableRaster for the result images
-        ColorModel colorModel = ColorModel.getRGBdefault();
-        WritableRaster rasters = colorModel.createCompatibleWritableRaster(width, height);
-
-        // Split and transfer alpha channels
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                var pixel = original != null ? original.getRGB(x, y) : 0;
-
-                int newPixel = (pixel & 0xFF) << 24 | 255 << 16 | 255 << 8 | 255; // White color
-                rasters.setPixel(x, y, colorModel.getComponents(newPixel, null, 0));
-            }
-        }
-
-        // Create result images from the rasters
-        return new BufferedImage(colorModel, rasters, false, null);
-    }
 }
 
 

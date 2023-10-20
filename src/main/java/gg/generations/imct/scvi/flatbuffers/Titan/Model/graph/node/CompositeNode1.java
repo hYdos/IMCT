@@ -2,16 +2,14 @@ package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
-import java.util.List;
 
-public class CompositeNode extends BaseNode {
+public class CompositeNode1 extends BaseNode {
     private InputNode top = InputNode.DEFAULT;
     private InputNode bottom = InputNode.DEFAULT;
 
     private Composite composite = null;
 
-    public CompositeNode() {
+    public CompositeNode1() {
     }
 
     protected void process() {
@@ -19,7 +17,7 @@ public class CompositeNode extends BaseNode {
             image = top.getInputData().get();
         } else {
             var bottomImage = bottom.getInputData().get();
-            var topImage = bottom.getInputData().get();
+            var topImage = top.getInputData().get();
 
             image = new BufferedImage(bottomImage.getWidth(), bottomImage.getHeight(), BufferedImage.TYPE_INT_ARGB);
 
@@ -35,21 +33,21 @@ public class CompositeNode extends BaseNode {
         }
     }
 
-    public CompositeNode setTop(InputNode top) {
+    public CompositeNode1 setTop(InputNode top) {
         this.top = top;
         top.addChangeListener(this);
         update();
         return this;
     }
 
-    public CompositeNode setBottom(InputNode bottom) {
+    public CompositeNode1 setBottom(InputNode bottom) {
         this.bottom = bottom;
         update();
         bottom.addChangeListener(this);
         return this;
     }
 
-    public CompositeNode setComposite(Composite composite) {
+    public CompositeNode1 setComposite(Composite composite) {
         this.composite = composite;
         update();
         return this;
