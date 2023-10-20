@@ -290,7 +290,7 @@ public class SVModel extends Model {
                     if (!Objects.requireNonNull(info.meshName()).contains("lod")) {
                         var name = materialRemap.getOrDefault(subMesh.materialName(), subMesh.materialName());
 
-                        System.out.println(name + " " + subMesh.shUnk3() + " " + subMesh.shUnk4());
+//                        System.out.println(name + " " + subMesh.shUnk3() + " " + subMesh.shUnk4());
 
                         int usedUvLayer = 0;
 
@@ -367,25 +367,16 @@ public class SVModel extends Model {
             switch (shader) {
                 case "Eye":
                 case "EyeClearCoat":
-                    path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
-
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir, targetDir), path);
-
-                    mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
-                    list.putIfAbsent(materialName, mat);
 
 
-/*
                     if(!list.containsKey("eyes")) {
-                        path = targetDir.resolve(name1 + "eyes.png").toAbsolutePath();
-
-                        EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
+                        path = targetDir.resolve(name1 + materialName +  ".png").toAbsolutePath();
+                        EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir, targetDir), path);
 
                         list.computeIfAbsent("eyes", key -> new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid")));
                     }
 
                     if (materialRemap != null) materialRemap.put(materialName, "eyes");
-*/
 
                     continue;
                 case "Unlit":

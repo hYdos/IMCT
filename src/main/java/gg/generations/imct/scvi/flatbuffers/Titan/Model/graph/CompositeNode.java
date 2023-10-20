@@ -29,7 +29,7 @@ public class CompositeNode extends BaseNode {
 
         image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 
-        System.out.println("(%s,%s) (%s,%s) (%s,%s)".formatted(top.getInputData().get().getWidth(), top.getInputData().get().getHeight(), bottom.getInputData().get().getWidth(), bottom.getInputData().get().getHeight(), width, height));
+//        System.out.println("(%s,%s) (%s,%s) (%s,%s)".formatted(top.getInputData().get().getWidth(), top.getInputData().get().getHeight(), bottom.getInputData().get().getWidth(), bottom.getInputData().get().getHeight(), width, height));
 
         mixImagesPerPixel();
     }

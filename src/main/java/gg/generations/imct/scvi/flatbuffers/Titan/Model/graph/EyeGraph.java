@@ -1,5 +1,6 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph;
 
+import gg.generations.imct.IMCT;
 import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.BaseNode;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.node.ChannelSplitterNode;
@@ -138,7 +139,7 @@ public class EyeGraph {
         if(material.properties().get("EmissionIntensityLayer4") instanceof Float intensity) emissionIntensity4.setValue(intensity);
         else emissionIntensity4.resetValue();
 
-        if(targetPath != null) display(material, targetPath);
+        if(targetPath != null && IMCT.shouldGenerateDebug) generate(material, targetPath);
 
         return output.get();
     }
@@ -173,7 +174,7 @@ public class EyeGraph {
         return new MaskNode().setMask(mask).setColor(color.getRed(), color.getGreen(), color.getBlue());
     }
 
-    public void display(ApiMaterial material, Path targetPath) {
+    public void generate(ApiMaterial material, Path targetPath) {
         EyeTextureGenerator.generate(output.get(), targetPath.resolve(Path.of("debug", material.name(), "output.png")));
         EyeTextureGenerator.generate(baseMix1.get(), targetPath.resolve(Path.of("debug", material.name(), "baseMix1.png")));
         EyeTextureGenerator.generate(baseMix2.get(), targetPath.resolve(Path.of("debug", material.name(), "baseMix2.png")));
@@ -185,6 +186,7 @@ public class EyeGraph {
         EyeTextureGenerator.generate(emMix4.get(), targetPath.resolve(Path.of("debug", material.name(), "emMix4.png")));
 
         EyeTextureGenerator.generate(base.get(), targetPath.resolve(Path.of("debug", material.name(), "base.png")));
+        EyeTextureGenerator.generate(alb.get(), targetPath.resolve(Path.of("debug", material.name(), "alb.png")));
         EyeTextureGenerator.generate(mask.get(), targetPath.resolve(Path.of("debug", material.name(), "mask.png")));
         EyeTextureGenerator.generate(maskGray.getInputData().get(), targetPath.resolve(Path.of("debug", material.name(), "maskGray.png")));
 

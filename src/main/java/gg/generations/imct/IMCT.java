@@ -17,6 +17,8 @@ import java.util.function.BiFunction;
 public class IMCT {
     public static final Set<String> TOTAL_SHADERS = new HashSet<>();
     public static boolean messWithTexture = true;
+    public static boolean shouldGenerateDebug = false; //Set to true to print various stages of the image assembly.
+    public static boolean shouldCheckOrigin = false; //Set to true to check alter skeleton to include origin.
 
 
     public static void main(String[] args) throws IOException {
@@ -25,7 +27,7 @@ public class IMCT {
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0004\\pm0004_00_00"), SVModel::new, Paths.get("output/0004"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0005\\pm0005_00_00"), SVModel::new, Paths.get("output/0005"));
 
-        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\BrokenPokemon\\BrokenPokemon\\pm0157\\pm0157_00_00"), SVModel::new, Paths.get("output\\blep\\pm0157_00_00"));
+//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\BrokenPokemon\\BrokenPokemon\\pm0157\\pm0157_00_41"), SVModel::new, Paths.get("output\\blep\\pm0157_00_41"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\BrokenPokemon\\BrokenPokemon\\pm0049\\pm0049_00_00"), SVModel::new, Paths.get("output\\bart\\pm0049_00_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_01_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_11_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_11_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_01_00"));
@@ -33,7 +35,7 @@ public class IMCT {
 //
         var path = Paths.get("C:\\Users\\water\\Downloads\\BrokenPokemon\\BrokenPokemon");
 
-        if(true) return;
+//        if(true) return;
 
         var paths = Files.walk(path, 0).flatMap(x -> {
             try {

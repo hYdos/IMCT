@@ -13,8 +13,8 @@ public class ScaleNode extends BaseNode {
     protected void process() {
         image = input.getInputData().get();
 
-        int width = sizeInput.getInputData().get().getWidth();
-        int height = sizeInput.getInputData().get().getHeight();
+        int width = Math.max(image.getWidth(), sizeInput.getInputData().get().getWidth());
+        int height = Math.max(image.getHeight(), sizeInput.getInputData().get().getHeight());
 
         if(image.getWidth() == width && image.getHeight() == height) return;
         image = EyeTextureGenerator.resizeImage(input.getInputData().get(), width, height);

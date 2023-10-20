@@ -136,23 +136,26 @@ public class SWSHModel extends Model {
             parent.addChild(node);
         }
 
-        if(joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
-            var current = joints.get(0).getParent();
+        if(IMCT.shouldCheckOrigin) {
+            if (joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
+                var current = joints.get(0).getParent();
 
-            while (current != null) {
-                joints.add((DefaultNodeModel) current);
+                while (current != null) {
+                    joints.add((DefaultNodeModel) current);
 
-                if(current.getName().equals("Origin")) {
-                    current = null;
-                } else {
-                    current = current.getParent();
+                    if (current.getName().equals("Origin")) {
+                        current = null;
+                    } else {
+                        current = current.getParent();
+                    }
+                }
+
+                if (joints.stream().map(a -> a.getName()).noneMatch(a -> a.equals("Origin"))) {
+                    throw new RuntimeException("Origin bone must exist!");
                 }
             }
-
-            if(joints.stream().map(a -> a.getName()).noneMatch(a -> a.equals("Origin"))) {
-                throw new RuntimeException("Origin bone must exist!");
-            }
         }
+
 
         if(IMCT.messWithTexture) {
 
