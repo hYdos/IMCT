@@ -401,7 +401,7 @@ public class LAModel extends Model {
                 case "Unlit":
                     path = targetDir.resolve(name1 + materialName + ".png").toAbsolutePath();
 
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
 
                     if(IMCT.messWithTexture) SV_BODY.display();
 
@@ -413,7 +413,7 @@ public class LAModel extends Model {
 
                     path = targetDir.resolve(name1 + materialName + ".png").toAbsolutePath();
 
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
 
                     mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "transparent"));
                     list.putIfAbsent(materialName, mat);
@@ -426,7 +426,7 @@ public class LAModel extends Model {
                 case "NonDirectional":
                     path = targetDir.resolve(name1 + materialName + ".png").toAbsolutePath();
 
-                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
+                    if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
 
 
 
