@@ -29,13 +29,13 @@ public class IMCT {
 
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\BrokenPokemon\\BrokenPokemon\\pm0157\\pm0157_00_41"), SVModel::new, Paths.get("output\\blep\\pm0157_00_41"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\BrokenPokemon\\BrokenPokemon\\pm0049\\pm0049_00_00"), SVModel::new, Paths.get("output\\bart\\pm0049_00_00"));
-//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_01_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_11_00"));
+        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0044\\pm0044\\pm0044_00"), SWSHModel::new, Paths.get("output\\pikachu\\pm0044_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_11_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_01_00"));
 
 //
         var path = Paths.get("C:\\Users\\water\\Downloads\\BrokenPokemon\\BrokenPokemon");
 
-//        if(true) return;
+        if(true) return;
 
         var paths = Files.walk(path, 0).flatMap(x -> {
             try {

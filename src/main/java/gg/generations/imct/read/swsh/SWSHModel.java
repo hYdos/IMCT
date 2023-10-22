@@ -96,6 +96,8 @@ public class SWSHModel extends Model {
                     bone.boneType(),
                     new ArrayList<>()
             ));
+
+            System.out.println(bone.name() + " " + bone.boneType() + " " + bone.rigidCheck());
         }
 
         // Second bone pass. Add children
@@ -112,7 +114,8 @@ public class SWSHModel extends Model {
         // Second bone pass. Convert into skeleton
         this.skeleton = new ArrayList<>();
 
-        for (var bone : bones) {
+        for (int i = 0; i < bones.size(); i++) {
+            var bone = bones.get(i);
             var node = new DefaultNodeModel();
             node.setName(bone.name);
 
@@ -124,7 +127,7 @@ public class SWSHModel extends Model {
             if (!(r.x == 0 && r.y == 0 && r.z == 0 && r.w == 1)) node.setRotation(new float[]{r.x, r.y, r.z, r.w});
             if (!(s.x == 1 && s.y == 1 && s.z == 1)) node.setScale(new float[]{s.x, s.y, s.z});
 
-            if (gfbmdl.bones(bone.rigIdx).rigidCheck() == null) joints.add(node);
+            if (gfbmdl.bones(i).boneType() == 1) joints.add(node);
             skeleton.add(node);
         }
 
@@ -137,18 +140,19 @@ public class SWSHModel extends Model {
         }
 
         if(IMCT.shouldCheckOrigin) {
-            if (joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
-                var current = joints.get(0).getParent();
+//            if (joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
+                var current = joints.get(0);
 
-                while (current != null) {
-                    joints.add((DefaultNodeModel) current);
-
-                    if (current.getName().equals("Origin")) {
-                        current = null;
-                    } else {
-                        current = current.getParent();
-                    }
-                }
+                while (current.getParent() != null) {
+                    current = (DefaultNodeModel) current.getParent();
+                    joints.add(0, current);
+//
+//                    if (current.getName().equals("Origin")) {
+//                        joints
+//                        current = null;
+//                    } else {
+//                    }
+//                }
 
                 if (joints.stream().map(a -> a.getName()).noneMatch(a -> a.equals("Origin"))) {
                     throw new RuntimeException("Origin bone must exist!");
