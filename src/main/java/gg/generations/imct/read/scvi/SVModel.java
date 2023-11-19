@@ -464,8 +464,12 @@ public class SVModel extends Model {
 
             var path = Path.of(mat1.getTexture("BaseColorMap").filePath());
             EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
-            path = Path.of(mat1.getTexture("LayerMaskMap").filePath());
-            EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
+            if(mat1.getTexture("LayerMaskMap") != null) {
+                path = Path.of(mat1.getTexture("LayerMaskMap").filePath());
+                EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
+            } else {
+                System.out.println();
+            }
 
             IMCT.TOTAL_SHADERS.add(shader);
         }
@@ -629,7 +633,11 @@ public class SVModel extends Model {
         var colors = new ArrayList<String>();
 
         for (int j = 0; j < reds.size(); j++) {
-            colors.add(color(reds.get(j), greens.get(j), blues.get(j)));
+            var r = reds.get(j);
+            var g = greens.size() < (j+1) ? 1.0f : greens.get(j);
+            var b = blues.size() < (j+1) ? 1.0f : blues.get(j);
+
+            colors.add(color(r, g, b));
         }
 
         return colors;

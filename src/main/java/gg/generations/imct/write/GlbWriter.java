@@ -27,6 +27,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.*;
 
@@ -185,7 +186,7 @@ public class GlbWriter {
 
             json1.addProperty("type", (String) material.properties().remove("type"));
             var textures = new JsonObject();
-            material.textures().forEach(new Consumer<ApiTexture>() {
+            material.textures().stream().filter(Objects::nonNull).forEach(new Consumer<ApiTexture>() {
                 @Override
                 public void accept(ApiTexture apiTexture) {
                     textures.addProperty(apiTexture.type(), Path.of(material.getTexture(apiTexture.type()).filePath()).getFileName().toString());
@@ -198,7 +199,8 @@ public class GlbWriter {
             material.properties().entrySet().forEach(new Consumer<Map.Entry<String, Object>>() {
                 @Override
                 public void accept(Map.Entry<String, Object> stringObjectEntry) {
-                    props.add(stringObjectEntry.getKey(), stringObjectEntry.getValue() instanceof String s ? new JsonPrimitive((String) stringObjectEntry.getValue()) : new JsonPrimitive((Float) stringObjectEntry.getValue()));
+                    if(stringObjectEntry.getValue() != null) props.add(stringObjectEntry.getKey(), stringObjectEntry.getValue() instanceof String s ? new JsonPrimitive((String) stringObjectEntry.getValue()) : new JsonPrimitive((Float) stringObjectEntry.getValue()));
+                    else System.out.println(stringObjectEntry.getKey());
                 }
             });
 
