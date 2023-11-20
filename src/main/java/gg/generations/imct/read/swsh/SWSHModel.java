@@ -20,6 +20,7 @@ import org.joml.*;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiConsumer;
+import java.util.stream.IntStream;
 
 public class SWSHModel extends Model {
     private final Map<Integer, String> materialIds = new HashMap<>();
@@ -60,44 +61,53 @@ public class SWSHModel extends Model {
                 .setRight(right);
     }
 
+    record Bone(
+            String name,
+            Vector3f translation,
+            Quaternionf rotation,
+            Vector3f scale,
+            int parent,
+            boolean hasSkinning,
+            long type,
+            List<Bone> children
+    ) {
+    }
+
     public SWSHModel(Path modelDir, Path targetDir) {
         var gfbmdl = gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model.getRootAsModel(read(modelDir.resolve(modelDir.getFileName() + ".gfbmdl")));
         if (gfbmdl.groupsLength() != gfbmdl.meshesLength())
             System.err.println("There may be an error Groups format != Mesh format");
 
-        record Bone(
-                String name,
-                Vector3f translation,
-                Quaternionf rotation,
-                Vector3f scale,
-                int parent,
-                int rigIdx,
-                long type,
-                List<Bone> children
-        ) {
-        }
-
         List<Bone> bones = new ArrayList<>();
 
-        var rigId = -1;
+//        var rigId = -1;
 
         // First bone pass. Get all raw info into a normal format
         for (int i = 0; i < gfbmdl.bonesLength(); i++) {
             var bone = gfbmdl.bones(i);
 
+//            var rigid = -1;
+//
+//            if(bone.rigidCheck() != null) {
+//                rigId++;
+//                rigid = bone.rigidCheck().unknown1();
+//            }
+
             var rawRotation = toVec3(bone.rotation());
-            bones.add(new Bone(
+            var b = new Bone(
                     bone.name(),
                     toVec3(bone.translation()),
                     new Quaternionf().rotateLocalX(rawRotation.x).rotateLocalY(rawRotation.y).rotateLocalZ(rawRotation.z),
                     toVec3(bone.scale()),
                     bone.parent(),
-                    i,
+                    bone.rigidCheck() == null,
                     bone.boneType(),
                     new ArrayList<>()
-            ));
+            );
 
-            System.out.println(bone.name() + " " + bone.boneType() + " " + bone.rigidCheck());
+            bones.add(b);
+
+            System.out.println(b.name() + " " + b.type() + " " + true);
         }
 
         // Second bone pass. Add children
@@ -108,7 +118,17 @@ public class SWSHModel extends Model {
             }
         }
 
-        joints = new ArrayList<>(bones.stream().mapToInt(a -> a.rigIdx).max().getAsInt());
+        var skinningIndices = new ArrayList<Integer>();
+
+//        for (int i = 0; i < bones.size(); i++) {
+//            var bone = bones.get(i);
+//
+//            if(bone.hasSkinning()) {
+//                skinningIndices.add(i);
+//            }
+//        }
+
+        joints = new ArrayList<>((int) bones.stream().filter(a -> a.hasSkinning).count());
 
 
         // Second bone pass. Convert into skeleton
@@ -127,7 +147,9 @@ public class SWSHModel extends Model {
             if (!(r.x == 0 && r.y == 0 && r.z == 0 && r.w == 1)) node.setRotation(new float[]{r.x, r.y, r.z, r.w});
             if (!(s.x == 1 && s.y == 1 && s.z == 1)) node.setScale(new float[]{s.x, s.y, s.z});
 
-            if (gfbmdl.bones(i).boneType() == 1) joints.add(node);
+//            if (bone.rigIdx() > -1) {
+//                joints.add(node);
+//            }
             skeleton.add(node);
         }
 
@@ -139,26 +161,27 @@ public class SWSHModel extends Model {
             parent.addChild(node);
         }
 
-        if(IMCT.shouldCheckOrigin) {
-//            if (joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
+        populateJoints(bones, bones.get(0));
+
+//        if(IMCT.shouldCheckOrigin) {
+            if (joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
                 var current = joints.get(0);
 
-                while (current.getParent() != null) {
+                while (current != null && current.getParent() != null) {
                     current = (DefaultNodeModel) current.getParent();
-                    joints.add(0, current);
-//
+                    var bool = joints.add(current);
+
 //                    if (current.getName().equals("Origin")) {
-//                        joints
 //                        current = null;
 //                    } else {
 //                    }
-//                }
+                }
 
                 if (joints.stream().map(a -> a.getName()).noneMatch(a -> a.equals("Origin"))) {
                     throw new RuntimeException("Origin bone must exist!");
                 }
             }
-        }
+//        }
 
 
         if(IMCT.messWithTexture) {
@@ -250,6 +273,11 @@ public class SWSHModel extends Model {
             });
         }
 
+//        System.out.println("A: " + joints.stream().map(a -> a.getName()).toList());
+//        System.out.println("B: " + bones.stream().map(a -> a.name()).toList());
+
+        var maxIndex = -1;
+
         for (int i = 0; i < gfbmdl.groupsLength(); i++) {
             var group = gfbmdl.groups(i);
             var name = gfbmdl.bones((int) group.boneIndex()).name();
@@ -321,6 +349,9 @@ public class SWSHModel extends Model {
                                 var z = vertexBuffer.get() & 0xFF;
                                 var w = vertexBuffer.get() & 0xFF;
                                 boneIds.add(new Vector4i(x, y, z, w));
+
+                                maxIndex = IntStream.of(maxIndex, x,y,z,w).max().getAsInt();
+
                             } else throw new RuntimeException("Unexpected bone idx format: " + attribute.format);
                         }
                         case BLEND_WEIGHTS -> {
@@ -350,6 +381,8 @@ public class SWSHModel extends Model {
                 }
             }
 
+            System.out.println("Max: " + maxIndex);
+
             for (int j = 0; j < meshGroup.polygonsLength(); j++) {
                 var mesh = meshGroup.polygons(j);
                 var indices = new ArrayList<Integer>();
@@ -358,6 +391,17 @@ public class SWSHModel extends Model {
 
                 meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get("regular").get(materialId), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
             }
+        }
+    }
+
+    private void populateJoints(List<Bone> list, Bone bone) {
+        if(bone.type() == 1) {
+            System.out.println(bone.name);
+            joints.add(skeleton.get(list.indexOf(bone)));
+        }
+
+        for (Bone a : bone.children()) {
+            populateJoints(list, a);
         }
     }
 
