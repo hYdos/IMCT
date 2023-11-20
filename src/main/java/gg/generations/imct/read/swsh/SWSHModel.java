@@ -1,6 +1,7 @@
 package gg.generations.imct.read.swsh;
 
 import de.javagl.jgltf.model.NodeModel;
+import de.javagl.jgltf.model.impl.AbstractNamedModelElement;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import gg.generations.imct.IMCT;
 import gg.generations.imct.api.ApiMaterial;
@@ -20,6 +21,7 @@ import org.joml.*;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class SWSHModel extends Model {
@@ -107,7 +109,7 @@ public class SWSHModel extends Model {
 
             bones.add(b);
 
-            System.out.println(b.name() + " " + b.type() + " " + true);
+//            System.out.println(b.name() + " " + b.type() + " " + true);
         }
 
         // Second bone pass. Add children
@@ -164,25 +166,18 @@ public class SWSHModel extends Model {
         populateJoints(bones, bones.get(0));
 
 //        if(IMCT.shouldCheckOrigin) {
-            if (joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
+//            if (joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
                 var current = joints.get(0);
 
                 while (current != null && current.getParent() != null) {
                     current = (DefaultNodeModel) current.getParent();
-                    var bool = joints.add(current);
-
-//                    if (current.getName().equals("Origin")) {
-//                        current = null;
-//                    } else {
-//                    }
+                    joints.add(current);
                 }
-
-                if (joints.stream().map(a -> a.getName()).noneMatch(a -> a.equals("Origin"))) {
-                    throw new RuntimeException("Origin bone must exist!");
-                }
-            }
+//            }
 //        }
 
+
+        System.out.println(joints.stream().map(AbstractNamedModelElement::getName).count());
 
         if(IMCT.messWithTexture) {
 
@@ -276,7 +271,7 @@ public class SWSHModel extends Model {
 //        System.out.println("A: " + joints.stream().map(a -> a.getName()).toList());
 //        System.out.println("B: " + bones.stream().map(a -> a.name()).toList());
 
-        var maxIndex = -1;
+        var maxIndex = 0;
 
         for (int i = 0; i < gfbmdl.groupsLength(); i++) {
             var group = gfbmdl.groups(i);
@@ -381,8 +376,6 @@ public class SWSHModel extends Model {
                 }
             }
 
-            System.out.println("Max: " + maxIndex);
-
             for (int j = 0; j < meshGroup.polygonsLength(); j++) {
                 var mesh = meshGroup.polygons(j);
                 var indices = new ArrayList<Integer>();
@@ -392,11 +385,12 @@ public class SWSHModel extends Model {
                 meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get("regular").get(materialId), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
             }
         }
+
+        System.out.println("Max: " + maxIndex);
     }
 
     private void populateJoints(List<Bone> list, Bone bone) {
         if(bone.type() == 1) {
-            System.out.println(bone.name);
             joints.add(skeleton.get(list.indexOf(bone)));
         }
 
