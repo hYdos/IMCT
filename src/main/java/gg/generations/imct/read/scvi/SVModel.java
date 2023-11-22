@@ -121,6 +121,14 @@ public class SVModel extends Model {
             parent.addChild(node);
         }
 
+        var root = skeleton.stream().filter(a -> a.getName().equals("Origin")).findFirst();
+
+        if(root.isEmpty()) {
+            throw new RuntimeException("Origin not found!");
+        } else {
+            this.root = root.get();
+        }
+
         if(joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
             var current = joints.get(0).getParent();
 

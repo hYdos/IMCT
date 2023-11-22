@@ -21,8 +21,10 @@ import org.joml.*;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class SWSHModel extends Model {
     private final Map<Integer, String> materialIds = new HashMap<>();
@@ -63,16 +65,35 @@ public class SWSHModel extends Model {
                 .setRight(right);
     }
 
-    record Bone(
-            String name,
-            Vector3f translation,
-            Quaternionf rotation,
-            Vector3f scale,
-            int parent,
-            boolean hasSkinning,
-            long type,
-            List<Bone> children
-    ) {
+    static final class Bone {
+        public String name;
+        public Vector3f translation;
+        public Quaternionf rotation;
+        public Vector3f scale;
+        public int parent;
+        public boolean hasSkinning;
+        public long type;
+        public List<Bone> children;
+
+        Bone(
+                String name,
+                Vector3f translation,
+                Quaternionf rotation,
+                Vector3f scale,
+                int parent,
+                boolean hasSkinning,
+                long type,
+                List<Bone> children
+        ) {
+            this.name = name;
+            this.translation = translation;
+            this.rotation = rotation;
+            this.scale = scale;
+            this.parent = parent;
+            this.hasSkinning = hasSkinning;
+            this.type = type;
+            this.children = children;
+        }
     }
 
     public SWSHModel(Path modelDir, Path targetDir) {
@@ -80,20 +101,17 @@ public class SWSHModel extends Model {
         if (gfbmdl.groupsLength() != gfbmdl.meshesLength())
             System.err.println("There may be an error Groups format != Mesh format");
 
+        genMaterials(gfbmdl, modelDir, targetDir);
+
+        genMeshes(gfbmdl);
+
         List<Bone> bones = new ArrayList<>();
 
-//        var rigId = -1;
+        var joints = new ArrayList<Integer>();
 
         // First bone pass. Get all raw info into a normal format
         for (int i = 0; i < gfbmdl.bonesLength(); i++) {
             var bone = gfbmdl.bones(i);
-
-//            var rigid = -1;
-//
-//            if(bone.rigidCheck() != null) {
-//                rigId++;
-//                rigid = bone.rigidCheck().unknown1();
-//            }
 
             var rawRotation = toVec3(bone.rotation());
             var b = new Bone(
@@ -107,37 +125,29 @@ public class SWSHModel extends Model {
                     new ArrayList<>()
             );
 
-            bones.add(b);
+                bones.add(b);
 
-//            System.out.println(b.name() + " " + b.type() + " " + true);
+                var local = -1;
+
+                if(b.hasSkinning) {
+                    joints.add(i);
+                }
+
         }
 
         // Second bone pass. Add children
         for (var value : bones) {
-            if (value.parent() != -1) {
-                var parent = bones.get(value.parent());
+            if (value.parent != -1) {
+
+                var parent = bones.get(value.parent);
                 if (parent != null) parent.children.add(value);
             }
         }
 
-        var skinningIndices = new ArrayList<Integer>();
-
-//        for (int i = 0; i < bones.size(); i++) {
-//            var bone = bones.get(i);
-//
-//            if(bone.hasSkinning()) {
-//                skinningIndices.add(i);
-//            }
-//        }
-
-        joints = new ArrayList<>((int) bones.stream().filter(a -> a.hasSkinning).count());
-
-
         // Second bone pass. Convert into skeleton
         this.skeleton = new ArrayList<>();
 
-        for (int i = 0; i < bones.size(); i++) {
-            var bone = bones.get(i);
+        for (Bone bone : bones) {
             var node = new DefaultNodeModel();
             node.setName(bone.name);
 
@@ -149,9 +159,6 @@ public class SWSHModel extends Model {
             if (!(r.x == 0 && r.y == 0 && r.z == 0 && r.w == 1)) node.setRotation(new float[]{r.x, r.y, r.z, r.w});
             if (!(s.x == 1 && s.y == 1 && s.z == 1)) node.setScale(new float[]{s.x, s.y, s.z});
 
-//            if (bone.rigIdx() > -1) {
-//                joints.add(node);
-//            }
             skeleton.add(node);
         }
 
@@ -163,115 +170,94 @@ public class SWSHModel extends Model {
             parent.addChild(node);
         }
 
-        populateJoints(bones, bones.get(0));
+        this.joints = joints.stream().map(skeleton::get).toList();
 
-//        if(IMCT.shouldCheckOrigin) {
-//            if (joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
-                var current = joints.get(0);
-
-                while (current != null && current.getParent() != null) {
-                    current = (DefaultNodeModel) current.getParent();
-                    joints.add(current);
-                }
-//            }
+//        var root = skeleton.stream().filter(a -> a.getName().equals("Origin")).findFirst();
+//
+//        if(root.isEmpty()) {
+//            throw new RuntimeException("Origin not found!");
+//        } else {
+//            this.root = root.get();
 //        }
 
+        System.out.println();
+    }
 
-        System.out.println(joints.stream().map(AbstractNamedModelElement::getName).count());
+    private void genMaterials(gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model gfbmdl, Path modelDir, Path targetDir) {
+        for (int i = 0; i < gfbmdl.materialsLength(); i++) {
+            var material = gfbmdl.materials(i);
+            var properties = new HashMap<String, Object>();
+            var textures = new ArrayList<ApiTexture>();
+            var materialName = material.name();
+            var shader = Objects.requireNonNull(material.shaderGroup(), "Null shader name");
+            properties.put("shader", shader);
+            properties.put("type", "solid");
 
-        if(IMCT.messWithTexture) {
-
-            for (int i = 0; i < gfbmdl.materialsLength(); i++) {
-                var material = gfbmdl.materials(i);
-                var properties = new HashMap<String, Object>();
-                var textures = new ArrayList<ApiTexture>();
-                var materialName = material.name();
-                var shader = Objects.requireNonNull(material.shaderGroup(), "Null shader name");
-                properties.put("shader", shader);
-                properties.put("type", "solid");
-
-                for (int j = 0; j < material.common().valuesLength(); j++) {
-                    var property = material.common().values(j);
-                    properties.put(property.name(), property.value());
-                }
-
-                for (int j = 0; j < material.valuesLength(); j++) {
-                    var property = material.values(j);
-                    properties.put(property.name(), property.value());
-                }
-
-                for (int j = 0; j < material.common().colorsLength(); j++) {
-                    var property = material.common().colors(j);
-                    properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
-                }
-
-                for (int j = 0; j < material.colorsLength(); j++) {
-                    var property = material.colors(j);
-                    properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
-                }
-
-                for (int j = 0; j < material.textureMapsLength(); j++) {
-                    var rawTexture = material.textureMaps(j);
-                    var texName = gfbmdl.textureNames(rawTexture.index());
-                    textures.add(new ApiTexture(processTextureName(rawTexture), modelDir.resolve(texName + ".png").toAbsolutePath().toString()));
-                }
-
-                materialIds.put(i, materialName);
-                var material1 = materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
-                        key,
-                        textures,
-                        properties
-                ));
-                var texture = material1.getTexture("BaseColorMap");
-
-                materials.computeIfAbsent("rare", mat -> new HashMap<>()).put(materialName, new ApiMaterial(
-                        materialName,
-                        textures.stream().map(a -> new ApiTexture(a.type(), a.filePath().replace(".png", "_rare.png"))).toList(),
-                        properties
-                ));
+            for (int j = 0; j < material.common().valuesLength(); j++) {
+                var property = material.common().values(j);
+                properties.put(property.name(), property.value());
             }
 
-            materials.forEach(new BiConsumer<String, Map<String, ApiMaterial>>() {
-                @Override
-                public void accept(String s, Map<String, ApiMaterial> map) {
-                    var shiny = s.equals("rare") ? "" : "shiny_";
+            for (int j = 0; j < material.valuesLength(); j++) {
+                var property = material.values(j);
+                properties.put(property.name(), property.value());
+            }
 
-                    map.values().stream().map(a -> new GlbReader.Pair<>(a.getTexture("BaseColorMap"), a.getTexture("LyBaseColorMap"))).forEach(pair -> {
-                        var base = Path.of(pair.left().filePath());
+            for (int j = 0; j < material.common().colorsLength(); j++) {
+                var property = material.common().colors(j);
+                properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
+            }
 
-                        if (pair.right() != null && pair.right().filePath().contains("Iris")) {
-                            var ly = Path.of(pair.right().filePath());
-                            top.setImage(base);
-                            bottom.setImage(ly);
-                            EyeTextureGenerator.generate(layerEyes.getInputData().get(), targetDir.resolve(base.getFileName()));
-                        } else if (pair.left().filePath().contains("Eye")) {
-                            top.setImage(base);
-                            EyeTextureGenerator.generate(eyes.getInputData().get(), targetDir.resolve(base.getFileName()));
-                        } else {
-                            top.setImage(base);
-                            EyeTextureGenerator.generate((pair.left().filePath().contains("Mouth") ? top : mirror).get(), targetDir.resolve(base.getFileName()));
-                        }
+            for (int j = 0; j < material.colorsLength(); j++) {
+                var property = material.colors(j);
+                properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
+            }
 
+            for (int j = 0; j < material.textureMapsLength(); j++) {
+                var rawTexture = material.textureMaps(j);
+                var texName = gfbmdl.textureNames(rawTexture.index());
+                textures.add(new ApiTexture(processTextureName(rawTexture), modelDir.resolve(texName + ".png").toAbsolutePath().toString()));
+            }
 
-//                    try {
-//                    input.setImage(path);
+            materialIds.put(i, materialName);
+            var material1 = materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
+                    key,
+                    textures,
+                    properties
+            ));
+            var texture = material1.getTexture("BaseColorMap");
 
-//                        EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
-//                        Files.writeString(targetDir.resolve(path.getFileName().toString() + ".meta"), longboiMeta, StandardOpenOption.CREATE_NEW);
-
-//                    } catch (IOException e) {
-//                        System.out.println(e.toString());
-//                        throw new RuntimeException(e);
-//                    }
-                    });
-                }
-            });
+            materials.computeIfAbsent("rare", mat -> new HashMap<>()).put(materialName, new ApiMaterial(
+                    materialName,
+                    textures.stream().map(a -> new ApiTexture(a.type(), a.filePath().replace(".png", "_rare.png"))).toList(),
+                    properties
+            ));
         }
 
-//        System.out.println("A: " + joints.stream().map(a -> a.getName()).toList());
-//        System.out.println("B: " + bones.stream().map(a -> a.name()).toList());
+        materials.forEach((s, map) -> {
+            var shiny = s.equals("rare") ? "" : "shiny_";
 
-        var maxIndex = 0;
+            map.values().stream().map(a -> new GlbReader.Pair<>(a.getTexture("BaseColorMap"), a.getTexture("LyBaseColorMap"))).forEach(pair -> {
+                var base = Path.of(pair.left().filePath());
+
+                if (pair.right() != null && pair.right().filePath().contains("Iris")) {
+                    var ly = Path.of(pair.right().filePath());
+                    top.setImage(base);
+                    bottom.setImage(ly);
+                    EyeTextureGenerator.generate(layerEyes.getInputData().get(), targetDir.resolve(base.getFileName()));
+                } else if (pair.left().filePath().contains("Eye")) {
+                    top.setImage(base);
+                    EyeTextureGenerator.generate(eyes.getInputData().get(), targetDir.resolve(base.getFileName()));
+                } else {
+                    top.setImage(base);
+                    EyeTextureGenerator.generate((pair.left().filePath().contains("Mouth") ? top : mirror).get(), targetDir.resolve(base.getFileName()));
+                }
+            });
+        });
+    }
+
+    private void genMeshes(gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model gfbmdl) {
+        var meshProxies = new HashMap<String, Map<String, MeshProxy>>();
 
         for (int i = 0; i < gfbmdl.groupsLength(); i++) {
             var group = gfbmdl.groups(i);
@@ -345,8 +331,6 @@ public class SWSHModel extends Model {
                                 var w = vertexBuffer.get() & 0xFF;
                                 boneIds.add(new Vector4i(x, y, z, w));
 
-                                maxIndex = IntStream.of(maxIndex, x,y,z,w).max().getAsInt();
-
                             } else throw new RuntimeException("Unexpected bone idx format: " + attribute.format);
                         }
                         case BLEND_WEIGHTS -> {
@@ -376,34 +360,22 @@ public class SWSHModel extends Model {
                 }
             }
 
+
+
             for (int j = 0; j < meshGroup.polygonsLength(); j++) {
                 var mesh = meshGroup.polygons(j);
                 var indices = new ArrayList<Integer>();
                 for (var idx = 0; idx < mesh.facesLength(); idx++) indices.add(mesh.faces(idx));
                 var materialId = idToName(mesh.materialIndex());
 
-                meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get("regular").get(materialId), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
+                meshes.add(new Mesh(name+ "_" + materialId, materials.get("regular").get(materialId), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
             }
-        }
 
-        System.out.println("Max: " + maxIndex);
-    }
-
-    private void populateJoints(List<Bone> list, Bone bone) {
-        if(bone.type() == 1) {
-            joints.add(skeleton.get(list.indexOf(bone)));
-        }
-
-        for (Bone a : bone.children()) {
-            populateJoints(list, a);
+            System.out.println(name + " " + Arrays.toString(boneIds.stream().flatMapToInt(a -> IntStream.of(a.x, a.y, a.z, a.w)).distinct().sorted().toArray()));
         }
     }
 
-    private void fillJoints(NodeModel root, List<NodeModel> jointMap) {
-        joints.add((DefaultNodeModel) root);
-
-        root.getChildren().stream().filter(jointMap::contains).forEach(child -> fillJoints((DefaultNodeModel) child, jointMap));
-    }
+    public record MeshProxy(String name, String materialId, List<Integer> indices, List<Vector3f> positions, List<Vector3f> normals, List<Vector4f> tangents, List<Vector4f> colors, List<Vector4f> weights, List<Vector4i> boneIds, List<Vector3f> biNormals, List<Vector2f> uvs) {};
 
     private String idToName(long idx) {
         return materialIds.get((int) idx);

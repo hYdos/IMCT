@@ -18,7 +18,7 @@ public class IMCT {
     public static final Set<String> TOTAL_SHADERS = new HashSet<>();
     public static boolean messWithTexture = true;
     public static boolean shouldGenerateDebug = false; //Set to true to print various stages of the image assembly.
-    public static boolean shouldCheckOrigin = false; //Set to true to check alter skeleton to include origin.
+    public static boolean shouldCheckOrigin = true; //Set to true to check alter skeleton to include origin.
 
 
     public static void main(String[] args) throws IOException {
@@ -29,7 +29,7 @@ public class IMCT {
 
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\BrokenPokemon\\BrokenPokemon\\pm0157\\pm0157_00_41"), SVModel::new, Paths.get("output\\blep\\pm0157_00_41"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\BrokenPokemon\\BrokenPokemon\\pm0049\\pm0049_00_00"), SVModel::new, Paths.get("output\\bart\\pm0049_00_00"));
-        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0044\\pm0044\\pm0044_00"), SWSHModel::new, Paths.get("output\\pikachu\\pm0044_00"));
+        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\anim\\anim\\pm0044\\pm0044_00"), SWSHModel::new, Paths.get("C:\\Users\\water\\Downloads\\pm0044_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_11_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_01_00"));
 
 //

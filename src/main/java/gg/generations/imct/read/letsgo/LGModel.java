@@ -160,6 +160,13 @@ public class LGModel extends Model {
         }
 
         var uvMapsToGen = new HashSet<String>();
+
+        materials(gfbmdl, targetDir, modelDir, uvMapsToGen);
+
+        meshes(gfbmdl, targetDir, uvMapsToGen);
+    }
+
+    private void materials(gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model gfbmdl, Path targetDir, Path modelDir, Set<String> uvMapsToGen) {
         var groupsToExclude = new HashSet<String>();
 
         if(IMCT.messWithTexture) {
@@ -258,23 +265,15 @@ public class LGModel extends Model {
                             top.setImage(base);
                             EyeTextureGenerator.generate((pair.left().filePath().contains("Mouth") ? top : mirror).get(), targetDir.resolve(base.getFileName()));
                         }
-
-
-//                    try {
-//                    input.setImage(path);
-
-//                        EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
-//                        Files.writeString(targetDir.resolve(path.getFileName().toString() + ".meta"), longboiMeta, StandardOpenOption.CREATE_NEW);
-
-//                    } catch (IOException e) {
-//                        System.out.println(e.toString());
-//                        throw new RuntimeException(e);
-//                    }
                     });
                 }
             });
         }
 
+    }
+
+
+    private void meshes(gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model gfbmdl, Path targetDir, Set<String> uvMapsToGen) {
         for (int i = 0; i < gfbmdl.groupsLength(); i++) {
             var group = gfbmdl.groups(i);
             var name = gfbmdl.bones((int) group.boneIndex()).name();

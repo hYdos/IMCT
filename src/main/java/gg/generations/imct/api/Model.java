@@ -15,6 +15,7 @@ public abstract class Model {
 
     public List<DefaultNodeModel> skeleton;
     public List<DefaultNodeModel> joints;
+    public DefaultNodeModel root;
     public final List<Mesh> meshes = new ArrayList<>();
     public final Map<String, Map<String, ApiMaterial>> materials = new HashMap<>(); // TODO: material sets. E.g One set for normal, one set for rare, one set for "edit" (needed for full model exporting in S/V and helpful for us too)
     public final Map<String, String> materialRemap = new HashMap<>();

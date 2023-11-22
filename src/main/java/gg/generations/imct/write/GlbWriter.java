@@ -55,12 +55,14 @@ public class GlbWriter {
             Files.createDirectories(path);
             var sceneModel = new DefaultSceneModel();
 
-            var skin = new DefaultSkinModel();
-            model.joints.forEach(skin::addJoint);
-
             var root = model.skeleton.get(0);
 
             sceneModel.addNode(root);
+
+            var skin = new DefaultSkinModel();
+            model.joints.forEach(skin::addJoint);
+            skin.setSkeleton(model.root);
+
             var ibmBuffer = FloatBuffer.allocate(16 * (skin.getJoints().size()));
 
             var arr = new float[16];
