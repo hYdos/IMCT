@@ -368,10 +368,10 @@ public class SWSHModel extends Model {
                 for (var idx = 0; idx < mesh.facesLength(); idx++) indices.add(mesh.faces(idx));
                 var materialId = idToName(mesh.materialIndex());
 
-                meshes.add(new Mesh(name+ "_" + materialId, materials.get("regular").get(materialId), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
+                meshes.add(new Mesh(name+ "_" + mesh.materialIndex(), materials.get("regular").get(materialId), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
             }
 
-            System.out.println(name + " " + Arrays.toString(boneIds.stream().flatMapToInt(a -> IntStream.of(a.x, a.y, a.z, a.w)).distinct().sorted().toArray()));
+//            System.out.println(name + " " + Arrays.toString(boneIds.stream().flatMapToInt(a -> IntStream.of(a.x, a.y, a.z, a.w)).distinct().sorted().toArray()));
         }
     }
 
