@@ -18,6 +18,7 @@ import gg.generations.imct.api.Model;
 import gg.generations.imct.read.scvi.ImageDisplayComponent;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
 import org.joml.Matrix4f;
+import org.joml.Vector4f;
 
 import java.io.IOException;
 import java.nio.FloatBuffer;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.*;
+import java.util.stream.Collectors;
 
 public class GlbWriter {
     private static Gson gson = new GsonBuilder().setPrettyPrinting().create();
@@ -107,7 +109,17 @@ public class GlbWriter {
 
 
 
-            Files.writeString(path.resolve("config.json"), generateJson(scale, model.materials, model.meshes, model.materialRemap));
+            Files.writeString(path.resolve("config.json"), generateJson(scale, model.materials, model.variants, model.meshes));
+
+            model.materials.values().stream().flatMap(a -> a.textures().stream()).map(a -> a.filePath()).distinct().forEach(texture -> {
+                var target = Path.of(texture);
+
+                try {
+                    Files.copy(target, path.resolve(target.getFileName()));
+                } catch (IOException e) {
+//                    throw new RuntimeException(e);
+                }
+            });
 
             // Pass the scene to the model builder. It will take care
             // of the other model elements that are contained in the scene.
@@ -137,44 +149,10 @@ public class GlbWriter {
         }
     }
 
-    private static Runnable checkShiny(String name, Model model, Path path) {
-        return () -> {
-            var regular = model.materials.get("regular").get(name);
-            var shiny = model.materials.get("rare").get(name);
+    private static String generateJson(double scale, Map<String, ApiMaterial> materials, Map<String, Map<String, String>> variants, List<Mesh> meshes) {
+        var materialsJson = materials.entrySet().stream().collect(Collectors.toMap(a -> a.getValue(), a -> a.getKey()));
 
-            if (regular != null && shiny != null) {
-                Path regularPath = path.resolve(Path.of(regular.getTexture("BaseColorMap").filePath()).getFileName());
-                Path shinyPath = path.resolve(Path.of(shiny.getTexture("BaseColorMap").filePath()).getFileName());
-
-                ImageDisplayComponent.Proxy.compare(name, EyeTextureGenerator.loadImage(regularPath), EyeTextureGenerator.loadImage(shinyPath)).thenAccept(aBoolean -> {
-                    if (!aBoolean) {
-                        model.materials.get("rare").remove(name);
-
-                        try {
-                            Files.delete(shinyPath);
-                        } catch (IOException e) {
-                        }
-
-                    }
-                }).join();
-            }
-        };
-    }
-
-    private static String generateJson(double scale, Map<String, Map<String, ApiMaterial>> materials, List<Mesh> meshes, Map<String, String> materialRemap) {
-        var materialsJson = new HashMap<ApiMaterial, String>();
-
-        materials.forEach((type, materialMap) -> materialMap.forEach((s, apiMaterial) -> {
-            materialsJson.put(apiMaterial, (type.equals("rare") ? "shiny_" : "") + s);
-        }));
-
-        var meshMap = new HashMap<String, String>();
-        var shinyMap = new HashMap<String, String>();
-        meshes.forEach(mesh -> {
-            var name = materialsJson.get(mesh.material());
-            meshMap.put(mesh.name(), name);
-            if(materialsJson.containsValue("shiny_" + name)) shinyMap.put(mesh.name(), "shiny_" + name);
-        });
+        var meshMap = meshes.stream().collect(Collectors.toMap(a -> a.name(), a -> a.material()));
 
         var json = new JsonObject();
 
@@ -184,7 +162,7 @@ public class GlbWriter {
         materialsJson.forEach((material, name) -> {
             var json1 = new JsonObject();
 
-            json1.addProperty("type", (String) material.properties().remove("type"));
+            json1.addProperty("shader", (String) material.properties().remove("shader"));
             var textures = new JsonObject();
             material.textures().stream().filter(Objects::nonNull).forEach(new Consumer<ApiTexture>() {
                 @Override
@@ -193,18 +171,22 @@ public class GlbWriter {
                 }
             });
 
-            json1.add("textures", textures);
+            json1.add("images", textures);
 
             var props = new JsonObject();
-            material.properties().entrySet().forEach(new Consumer<Map.Entry<String, Object>>() {
-                @Override
-                public void accept(Map.Entry<String, Object> stringObjectEntry) {
-                    if(stringObjectEntry.getValue() != null) props.add(stringObjectEntry.getKey(), stringObjectEntry.getValue() instanceof String s ? new JsonPrimitive((String) stringObjectEntry.getValue()) : new JsonPrimitive((Float) stringObjectEntry.getValue()));
-                    else System.out.println(stringObjectEntry.getKey());
-                }
+            material.properties().forEach((key, value) -> {
+                if(value instanceof Float f) {
+                    props.addProperty(key, f);
+                } else if(value instanceof String string) {
+                    props.addProperty(key, string);
+                }/*
+
+                if (value != null && !(value instanceof Vector4f)) {
+                    props.add(key, value instanceof String s ? new JsonPrimitive((String) value) : new JsonPrimitive((Float) value));
+                } */else System.out.println(key);
             });
 
-            json1.add("props", props);
+            json1.add("values", props);
 
 
 
@@ -216,7 +198,7 @@ public class GlbWriter {
         var defaultVariantJson = new JsonObject();
         meshMap.forEach((k, v) -> {
             var a = new JsonObject();
-            a.addProperty("material", materialRemap.getOrDefault(k, v));
+            a.addProperty("material", v);
             a.addProperty("hide", false);
             defaultVariantJson.add(k, a);
         });
@@ -224,16 +206,24 @@ public class GlbWriter {
         json.add("defaultVariant", defaultVariantJson);
 
         var variantsJson = new JsonObject();
-        variantsJson.add("normal", new JsonObject());
 
-        var shinyJson = new JsonObject();
-        shinyMap.forEach((k, v) -> {
+        for (String variant : variants.keySet()) {
+            var data = variants.get(variant);
+
             var a = new JsonObject();
-            a.addProperty("material", v);
-            shinyJson.add(k, a);
-        });
 
-        variantsJson.add("shiny", shinyJson);
+            for(var mesh : data.keySet()) {
+                var material = data.get(mesh);
+
+                if(!meshMap.get(mesh).equals(material)) {
+                    var variantJson = new JsonObject();
+                    variantJson.addProperty("material", material);
+                    a.add(mesh, variantJson);
+                }
+            }
+
+            variantsJson.add(variant, a);
+        }
 
         json.add("variants", variantsJson);
 

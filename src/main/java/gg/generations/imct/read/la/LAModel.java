@@ -19,9 +19,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 
-import static gg.generations.imct.read.scvi.SVModel.SV_BODY;
-import static gg.generations.imct.read.scvi.SVModel.SV_EYE;
-
 public class LAModel extends Model {
     public static EyeGraph SV_EYE = new EyeGraph(128);
     public static FIreGraph SV_BODY = new FIreGraph(512);
@@ -247,7 +244,7 @@ public class LAModel extends Model {
                     var subIdxBuffer = indices.subList((int) subMesh.indexOffset(), (int) (subMesh.indexOffset() + subMesh.indexCount()));
                     if (!Objects.requireNonNull(info.meshName()).contains("lod")) {
                         var name = materialRemap.getOrDefault(subMesh.material(), subMesh.material());
-                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.material(), this.materials.get("regular").get(name), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
+//                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.material(), this.materials.get(name), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
                     }
                 }
             }
@@ -331,7 +328,7 @@ public class LAModel extends Model {
 
 
     private void processMaterials(String name, Path modelDir, Path targetDir, gg.generations.imct.read.scvi.flatbuffers.Titan.Model.TRMTR materials, Map<String, String> materialRemap) throws IOException {
-        var list = this.materials.computeIfAbsent(name, a -> new HashMap<>());
+//        var list = this.materials.computeIfAbsent(name, a -> new HashMap<>());
 
         for (int i = 0; i < materials.materialsLength(); i++) {
             var properties = new HashMap<String, Object>();
@@ -385,7 +382,7 @@ public class LAModel extends Model {
                     if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_EYE.update(mat, modelDir), path);
 
                     mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
-                    list.putIfAbsent(materialName, mat);
+//                    list.putIfAbsent(materialName, mat);
 
 
 /*
@@ -409,7 +406,7 @@ public class LAModel extends Model {
                     if(IMCT.messWithTexture) SV_BODY.display();
 
                     mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "unlit"));
-                    list.putIfAbsent(materialName, mat);
+//                    list.putIfAbsent(materialName, mat);
 
                     continue;
                 case "Transparent":
@@ -419,7 +416,7 @@ public class LAModel extends Model {
                     if(IMCT.messWithTexture) EyeTextureGenerator.generate(SV_BODY.update(mat, modelDir), path);
 
                     mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "transparent"));
-                    list.putIfAbsent(materialName, mat);
+//                    list.putIfAbsent(materialName, mat);
 
                     continue;
                 case "SSSEffect":
@@ -434,7 +431,7 @@ public class LAModel extends Model {
 
 
                     mat = new ApiMaterial(materialName, List.of(new ApiTexture("BaseColorMap", path.toString())), Map.of("type", "solid"));
-                    list.putIfAbsent(materialName, mat);
+//                    list.putIfAbsent(materialName, mat);
 
 //                    if (materialRemap != null) materialRemap.put(materialName, "eyes");
 
@@ -446,7 +443,7 @@ public class LAModel extends Model {
                     break;
             }
 
-            list.put(materialName, mat);
+//            list.put(materialName, mat);
 
             IMCT.TOTAL_SHADERS.add(shader);
         }

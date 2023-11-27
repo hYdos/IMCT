@@ -16,7 +16,7 @@ import java.util.List;
 
 public record Mesh(
         String name,
-        ApiMaterial material,
+        String material,
         List<Integer> indices,
         List<Vector3f> positions,
         List<Vector3f> normals,
@@ -83,7 +83,7 @@ public record Mesh(
         return buffer.rewind();
     }
 
-    public Mesh withNewMaterial(ApiMaterial material) {
+    public Mesh withNewMaterial(String material) {
         return new Mesh(
             name,
             material,

@@ -209,11 +209,11 @@ public class LGModel extends Model {
 
                     properties.put("type", "unlit");
 
-                    materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
-                            key,
-                            List.of(new ApiTexture("BaseColorMap", materialName + ".png")),
-                            properties
-                    ));
+//                    materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
+//                            key,
+//                            List.of(new ApiTexture("BaseColorMap", materialName + ".png")),
+//                            properties
+//                    ));
 
                     materialIds.put(i, materialName);
 
@@ -221,58 +221,54 @@ public class LGModel extends Model {
                 }
 
                 materialIds.put(i, materialName);
-                materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
-                        key,
-                        textures,
-                        properties
-                ));
+//                materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
+//                        key,
+//                        textures,
+//                        properties
+//                ));
 
-                materials.computeIfAbsent("rare", mat -> new HashMap<>()).put(materialName, new ApiMaterial(
-                        materialName,
-                        textures.stream().map(a -> new ApiTexture(a.type(), a.filePath().replace(".png", "_rare.png"))).toList(),
-                        properties
-                ));
+
             }
 
-            materials.forEach(new BiConsumer<String, Map<String, ApiMaterial>>() {
-                @Override
-                public void accept(String s, Map<String, ApiMaterial> map) {
-                    var shiny = s.equals("rare") ? "" : "shiny_";
-
-                    map.values().stream().map(a -> new GlbReader.Pair<>(a.getTexture("BaseColorMap"), a.getTexture("LyBaseColorMap"))).forEach(pair -> {
-                        if(pair.right() == null && uvMapsToGen.contains(pair.left().filePath().replace(".png", ""))) {
-                            return;
-                        }
-
-                        var base = Path.of(pair.left().filePath());
-
-                        if (pair.right() != null && pair.right().filePath().contains("Iris")) {
-                            var ly = Path.of(pair.right().filePath());
-                            top.setImage(base);
-                            bottom.setImage(ly);
-                            EyeTextureGenerator.generate(layerEyes.getInputData().get(), targetDir.resolve(base.getFileName()));
-                        } else if (pair.left().filePath().contains("Eye")) {
-                            top.setImage(base);
-                            EyeTextureGenerator.generate(eyes.getInputData().get(), targetDir.resolve(base.getFileName()));
-                        } else {
-                            top.setImage(base);
-                            EyeTextureGenerator.generate((pair.left().filePath().contains("Mouth") ? top : mirror).get(), targetDir.resolve(base.getFileName()));
-                        }
-
-
-//                    try {
-//                    input.setImage(path);
-
-//                        EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
-//                        Files.writeString(targetDir.resolve(path.getFileName().toString() + ".meta"), longboiMeta, StandardOpenOption.CREATE_NEW);
-
-//                    } catch (IOException e) {
-//                        System.out.println(e.toString());
-//                        throw new RuntimeException(e);
-//                    }
-                    });
-                }
-            });
+//            materials.forEach(new BiConsumer<String, Map<String, ApiMaterial>>() {
+//                @Override
+//                public void accept(String s, Map<String, ApiMaterial> map) {
+//                    var shiny = s.equals("rare") ? "" : "shiny_";
+//
+//                    map.values().stream().map(a -> new GlbReader.Pair<>(a.getTexture("BaseColorMap"), a.getTexture("LyBaseColorMap"))).forEach(pair -> {
+//                        if(pair.right() == null && uvMapsToGen.contains(pair.left().filePath().replace(".png", ""))) {
+//                            return;
+//                        }
+//
+//                        var base = Path.of(pair.left().filePath());
+//
+//                        if (pair.right() != null && pair.right().filePath().contains("Iris")) {
+//                            var ly = Path.of(pair.right().filePath());
+//                            top.setImage(base);
+//                            bottom.setImage(ly);
+//                            EyeTextureGenerator.generate(layerEyes.getInputData().get(), targetDir.resolve(base.getFileName()));
+//                        } else if (pair.left().filePath().contains("Eye")) {
+//                            top.setImage(base);
+//                            EyeTextureGenerator.generate(eyes.getInputData().get(), targetDir.resolve(base.getFileName()));
+//                        } else {
+//                            top.setImage(base);
+//                            EyeTextureGenerator.generate((pair.left().filePath().contains("Mouth") ? top : mirror).get(), targetDir.resolve(base.getFileName()));
+//                        }
+//
+//
+////                    try {
+////                    input.setImage(path);
+//
+////                        EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
+////                        Files.writeString(targetDir.resolve(path.getFileName().toString() + ".meta"), longboiMeta, StandardOpenOption.CREATE_NEW);
+//
+////                    } catch (IOException e) {
+////                        System.out.println(e.toString());
+////                        throw new RuntimeException(e);
+////                    }
+//                    });
+//                }
+//            });
         }
 
         for (int i = 0; i < gfbmdl.groupsLength(); i++) {
@@ -407,7 +403,7 @@ public class LGModel extends Model {
                     }
                 }
 
-                meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get("regular").get(materialId), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
+//                meshes.add(new Mesh(name + "_" + mesh.materialIndex(), materials.get(materialId), indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
             }
         }
     }

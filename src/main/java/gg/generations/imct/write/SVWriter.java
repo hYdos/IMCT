@@ -140,7 +140,7 @@ public class SVWriter {
         var meshes = new ArrayList<Integer>();
 
         for (var mesh : model.meshes) {
-            var materialsOffset = MeshShape.createMaterialsVector(builder, new int[]{MaterialInfo.createMaterialInfo(builder, mesh.positions().size(), data.meshOffsetMap.get(mesh), 0, builder.createString(mesh.material().name()), -1)});
+            var materialsOffset = MeshShape.createMaterialsVector(builder, new int[]{MaterialInfo.createMaterialInfo(builder, mesh.positions().size(), data.meshOffsetMap.get(mesh), 0, builder.createString(mesh.material()), -1)});
             var attributesOffset = MeshShape.createAttributesVector(builder, new int[]{createSVAttributes(builder, data.vertexStride, settings.layout())});
             var influenceOffset = MeshShape.createInfluenceVector(builder, new int[0]);
             var visShapesOffset = MeshShape.createVisShapesVector(builder, new int[0]);

@@ -125,8 +125,12 @@ public class EyeTextureGenerator {
     }
 
     public static void copy(Path from, Path to) throws IOException {
-        Files.copy(from, to, StandardCopyOption.REPLACE_EXISTING);
-//        System.out.println("Copied: " + from  + " -> " + );
+        try {
+            Files.copy(from, to, StandardCopyOption.REPLACE_EXISTING);
+            System.out.println("Copied: " + from + " -> " + to);
+        } catch (Exception e) {
+//            e.printStackTrace();
+        }
     }
 
     public interface Operation {

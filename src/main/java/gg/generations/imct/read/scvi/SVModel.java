@@ -1,6 +1,6 @@
 package gg.generations.imct.read.scvi;
 
-import com.google.gson.GsonBuilder;
+import com.google.gson.*;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import gg.generations.imct.IMCT;
 import gg.generations.imct.api.ApiMaterial;
@@ -9,23 +9,20 @@ import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.*;
 import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.Animaton.*;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeGraph;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
-import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.FIreGraph;
 import gg.generations.imct.util.TrinityUtils;
 import gg.generations.imct.write.GlbReader;
 import org.joml.*;
 
 import java.awt.*;
-import java.awt.datatransfer.StringSelection;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.lang.Math;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -36,7 +33,7 @@ public class SVModel extends Model {
 
     record AnimTrack() {}
 
-    record MaterialTrack(Map<String, ArrayList<String>> animTracks) {}
+    record MaterialTrack(Map<String, List<String>> animTracks) {}
 
     record Track(Map<String, MaterialTrack> animation) {
 
@@ -153,63 +150,15 @@ public class SVModel extends Model {
             }
         }
 
-        var materialRemap = new HashMap<String, String>();
+        // Process material data;
 
-        // Process material data
-        var materials = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
-        processMaterials("regular", modelDir, targetDir, materials, materialRemap);
+        var defaultTRMMT = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
 
-        // Process extra material variants (shiny)
-
-        var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt")));
-
-        var matts = new HashMap<String, Map<String, Track> >();
-
-        for (int i = 0; i < extraMaterials.materialLength(); i++) {
-            var mtt = extraMaterials.material(i);
-
-            Map<String, Track> tracks = new HashMap<>();
-
-            IntStream.range(0, mtt.materialPropertiesLength())
-                    .mapToObj(mtt::materialProperties)
-                    .map(a -> TRACM.getRootAsTRACM(a.tracm().bytebufferAsByteBuffer()))
-                    .flatMap(a -> IntStream.range(0, a.tracksLength())
-                            .mapToObj(a::tracks)).forEach(a -> {
-                                var materialTracks = new HashMap<String, MaterialTrack>();
-
-                                IntStream.range(0, a.materialAnimation().materialTrackLength()).mapToObj(j -> a.materialAnimation().materialTrack(j)).forEach(trackMaterial -> {
-                                    var animTracks = IntStream.range(0, trackMaterial.animValuesLength()).mapToObj(trackMaterial::animValues).collect(Collectors.toMap(a1 -> a1.name(), a1 -> extractedColors(a1.list())));
-
-                                    materialTracks.put(trackMaterial.name(), new MaterialTrack(animTracks));
-                                });
-                                tracks.put(a.trackPath(), new Track(materialTracks));
-
-                    });
-
-            matts.put(mtt.name(), tracks);
-
-//            processMaterials(mtt.name(), modelDir, targetDir, TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(mtt.materialName(0), "Material name was null")))), null);
-        }
-
-        Map<String, Map<Integer, Map<String, Map<String, String>>>> MAP = new HashMap<>();
-
-
-
-        matts.forEach((type, meshMap) -> {
-            var typeMap = MAP.computeIfAbsent(type, a -> new HashMap<>());
-            meshMap.values().stream().map(Track::animation).forEach(track -> {
-                track.forEach((materialName, materialTrack) -> {
-                    materialTrack.animTracks().forEach((uniform, values) -> {
-                        for (int i = 0; i < values.size(); i++) {
-                            var value = values.get(i);
-                            typeMap.computeIfAbsent(i, a -> new HashMap<>()).computeIfAbsent(materialName, a -> new HashMap<>()).computeIfAbsent(uniform, a -> value);
-                        }
-                    });
-                });
-            });
+        createMaterials(Stream.of(defaultTRMMT)).get(0).forEach((k, v) -> {
+            materials.put(k, v.toApiMaterial(modelDir, k));
         });
 
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(new GsonBuilder().setPrettyPrinting().create().toJson(MAP)), null);
+
 
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
@@ -327,17 +276,282 @@ public class SVModel extends Model {
                     var subMesh = info.materials(j);
                     var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
                     if (!Objects.requireNonNull(info.meshName()).contains("lod")) {
-                        var name = materialRemap.getOrDefault(subMesh.materialName(), subMesh.materialName());
-                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), this.materials.get("regular").get(name), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
+                        materialRemap.computeIfAbsent(subMesh.materialName(), a -> new ArrayList<>()).add(info.meshName() + "_" + subMesh.materialName());
+                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), subMesh.materialName(), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
                     }
                 }
             }
 
+
+            // Process extra material variants (shiny)
+
+            var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt")));
+
+            var map = new HashMap<>(IntStream.range(0, extraMaterials.materialLength()).mapToObj(extraMaterials::material).collect(Collectors.toMap(MMT::name, mtt -> {
+                var trmtrs = IntStream.range(0, mtt.materialNameLength()).mapToObj(mtt::materialName).map(a -> TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(a, "Material name was null"))))).toList();
+
+
+                var materials = createMaterials(trmtrs.isEmpty() ? Stream.of(defaultTRMMT) : trmtrs.stream());
+
+                var materialProperties = IntStream.range(0, mtt.materialPropertiesLength()).mapToObj(mtt::materialProperties).collect(Collectors.toMap(MaterialProperties::name, materialProperties1 -> {
+                    var tracm = TRACM.getRootAsTRACM(materialProperties1.tracm().bytebufferAsByteBuffer());
+
+                    var tracks = IntStream.range(0, tracm.tracksLength()).mapToObj(tracm::tracks).collect(Collectors.toMap(gg.generations.imct.read.scvi.flatbuffers.Titan.Model.Animaton.Track::trackPath, a -> IntStream.range(0, a.materialAnimation().materialTrackLength()).mapToObj(j -> a.materialAnimation().materialTrack(j)).collect(Collectors.toMap(track -> track.name(), trackMaterial -> new MaterialTrack(IntStream.range(0, trackMaterial.animValuesLength()).mapToObj(trackMaterial::animValues).collect(Collectors.toMap(TrackMaterialAnim::name, a1 -> extractedColors(a1.list()))))))));
+
+                    var mappers = new HashMap<String, Map<String, List<String>>>();
+                    IntStream.range(0, materialProperties1.mappersLength()).mapToObj(materialProperties1::mappers).forEach(materialMapper -> {
+                        var map1 = mappers.computeIfAbsent(materialMapper.meshName(), a -> new HashMap<>());
+                        map1.computeIfAbsent(materialMapper.materialName(), a -> new ArrayList<>()).add(materialMapper.layerName());
+                    });
+
+                    var config = new TrackConfig(tracm.config().framerate(), tracm.config().duration());
+
+                    return new MaterialProperty(config, tracks, mappers);
+                }));
+
+                return new Generic(materialProperties, materials);
+            })));
+
+            var regularPair = new GlbReader.Pair<>("regular", new Generic(new HashMap<>(), createMaterials(Stream.of(defaultTRMMT))));
+
+
+            if(map.size() == 1 && map.containsKey("rare")) {
+                map.put(regularPair.left(), regularPair.right());
+            }
+
+            var variantMap = new HashMap<String, Map<String, String>>();
+
+
+
+            map.forEach((variantBase, data) -> {
+                var material = data.materials().get(0);
+
+                if(data.materialProperties() != null && !data.materialProperties().isEmpty()) {
+                    var amount = data.materialProperties().entrySet().stream().flatMap(a -> a.getValue().tracks().values().stream()).map(a -> a.values()).flatMap(a -> a.stream()).flatMap(a -> a.animTracks().values().stream()).mapToInt(a -> a.size()).max().getAsInt();
+
+//                    var properties = data.materialProperties().get("color").tracks().entrySet().stream().collect(Collectors.toMap(a -> a.getKey(), a -> a.getValue().entrySet().stream().collect(Collectors.toMap(b -> b.getKey(), b -> b.getValue().animTracks))));
+
+                    var map1 = data.materialProperties().get("color").tracks().entrySet().stream().map(a -> a.getValue()).flatMap(a -> a.entrySet().stream()).map(a -> new GlbReader.Pair<String, Map<String, List<String>>>(a.getKey(), a.getValue().animTracks())).collect(Collectors.toMap(GlbReader.Pair::left, a -> a.right(), (a, b) -> a));
+
+                    var properties = transformMap(map1, amount);
+
+
+                    for (int j = 0; j < amount; j++) {
+                        var materialProxies = new HashMap<String, String>();
+
+                        for (Map.Entry<String, Material> entry : material.entrySet()) {
+                            String materialName = entry.getKey();
+                            Material v = entry.getValue();
+                            var meshName = materialRemap.get(materialName);
+
+                            if (meshName == null) throw new RuntimeException("Material needs mesh!");
+
+
+                            var m = properties.get(j).get(materialName);
+
+                            var mat = v.toApiMaterial(modelDir, materialName, m);
+
+                            var existing = materials.entrySet().stream().filter(a -> a.getValue().equals(mat)).findAny();
+
+
+                            var materialNameFinal = variantBase + "_" + j + "_" + materialName;
+
+                            if (existing.isEmpty()) {
+                                materials.put(materialNameFinal, mat);
+                            } else {
+                                materialNameFinal = existing.get().getKey();
+                            }
+
+
+                            for (String name : meshName) {
+                                materialProxies.put(name, materialNameFinal);
+                            }
+
+                        }
+                        variants.put(variantBase + "_" + j, materialProxies);
+
+                    }
+
+                } else {
+
+                    var materialProxies = new HashMap<String, String>();
+
+                    material.forEach((materialName, v) -> {
+                        var mat = v.toApiMaterial(modelDir, materialName);
+
+                        var meshName = materialRemap.get(materialName);
+
+                        if(meshName == null) throw new RuntimeException("Material needs mesh!");
+
+                        var existing = materials.entrySet().stream().filter(a -> a.getValue().equals(mat)).findAny();
+
+                        var materialNameFinal = variantBase + "_" + materialName;
+
+                        if(existing.isEmpty()) {
+                            materials.put(materialNameFinal, mat);
+                        } else {
+                            materialNameFinal = existing.get().getKey();
+                        }
+
+
+                        for (String name : meshName) {
+                            materialProxies.put(name, materialNameFinal);
+                        }
+                    });
+
+                    variants.put(variantBase, materialProxies);
+                }
+
+            });
+
+
+
+//        System.out.println();
+
+
+            var gson = new GsonBuilder().setPrettyPrinting().registerTypeAdapter(Vector4f.class, (JsonSerializer<Vector4f>) (src, typeOfSrc, context) -> {
+                var color = vectorToString(src);
+
+                return new JsonPrimitive(color);
+            }).create();
+
+//
+//            try {
+//                var reader = createFileWriter(targetDir.resolve("data.json"));
+//                reader.append(gson.toJson(variants));
+//                reader.flush();
+//            } catch (Exception e) {
+//                throw new RuntimeException("Fuck", e);
+//            }
         }
     }
 
+    private static String vectorToString(Vector4f color) {
+        // Ensure the RGB components are in the range of 0.0 to 1.0
+        float r = Math.max(0.0f, Math.min(1.0f, color.x));
+        float g = Math.max(0.0f, Math.min(1.0f, color.y));
+        float b = Math.max(0.0f, Math.min(1.0f, color.z));
+
+        // Convert normalized values to 8-bit integer values
+        int red = (int) (r * 255);
+        int green = (int) (g * 255);
+        int blue = (int) (b * 255);
+
+        // Create the hexadecimal color string
+
+        return String.format("#%02X%02X%02X", red, green, blue);
+    }
+
+    private static float rgbTosRGB(float value) {
+        return (float) Math.pow(value, 1/2.2);
+    }
+
+
+    private List<Map<String, Material>> createMaterials(Stream<TRMTR> trmtrStream) {
+        return trmtrStream.map(a -> IntStream.range(0, a.materialsLength()).mapToObj(a::materials).collect(Collectors.toMap(gg.generations.imct.read.scvi.flatbuffers.Titan.Model.Material::name, material -> {
+
+            var floatParmeters = IntStream.range(0, material.floatParameterLength()).mapToObj(material::floatParameter).collect(Collectors.<FloatParameter, String, Float>toMap(FloatParameter::floatName, FloatParameter::floatValue));
+
+            var shaderParameters = new HashMap<String, Map<String, String>>();
+            IntStream.range(0, material.shadersLength()).mapToObj(material::shaders).forEach(shader -> shaderParameters.put(shader.shaderName(), IntStream.range(0, shader.shaderValuesLength()).mapToObj(shader::shaderValues).collect(Collectors.toMap(StringParameter::stringName, StringParameter::stringValue))));
+
+            var textures = IntStream.range(0, material.texturesLength()).mapToObj(material::textures).collect(Collectors.toMap(Texture::textureName, texture -> texture.textureFile().replace(".bntx", ".png")));
+
+            var vectors = IntStream.range(0, material.float4ParameterLength()).mapToObj(material::float4Parameter).collect(Collectors.toMap(Float4Parameter::colorName, param -> new Vector4f(param.colorValue().r(), param.colorValue().g(), param.colorValue().b(), param.colorValue().a())));
+
+
+            return new Material(floatParmeters, shaderParameters, textures, vectors);
+        }))).toList();
+    }
+
+    public static BufferedWriter createFileWriter(Path filePath) {
+        try {
+            // Delete the file if it exists
+            if (Files.exists(filePath) && !Files.deleteIfExists(filePath)) {
+                throw new RuntimeException("Unable to delete the existing file at path: " + filePath);
+            }
+
+            // Create a new file
+            Files.createFile(filePath);
+            System.out.println("File created at path: " + filePath);
+
+            // Create a BufferedWriter for the new file
+            return Files.newBufferedWriter(filePath, StandardOpenOption.WRITE);
+
+        } catch (IOException e) {
+            throw new RuntimeException("Error while processing file at path: " + filePath, e);
+        }
+    }
+
+    public record Material(Map<String, Float> floatParmeters, Map<String, Map<String, String>> shaderParameters, Map<String, String> textures, Map<String, Vector4f> vectors) {
+
+        public ApiMaterial toApiMaterial(Path source, String key) {
+            return toApiMaterial(source, key, null);
+        }
+
+        public ApiMaterial toApiMaterial(Path source, String key, Map<String, String> propertyRemap) {
+            var values = new HashMap<String, Object>();
+            values.put("shader", processShaderType(shaderParameters));
+
+            if (this.vectors.containsKey("BaseColorLayer1")) values.put("baseColor1", color("BaseColorLayer1", this.vectors, propertyRemap));
+            if (this.vectors.containsKey("BaseColorLayer2")) values.put("baseColor2", color("BaseColorLayer2", this.vectors, propertyRemap));
+            if (this.vectors.containsKey("BaseColorLayer3")) values.put("baseColor3", color("BaseColorLayer3", this.vectors, propertyRemap));
+            if (this.vectors.containsKey("BaseColorLayer4")) values.put("baseColor4", color("BaseColorLayer4", this.vectors, propertyRemap));
+            if (this.vectors.containsKey("BaseColorLayer5")) values.put("baseColor5", color("BaseColorLayer5", this.vectors, propertyRemap));
+            if (this.floatParmeters().containsKey("EmissionIntensityLayer1")) {
+                var intensity = this.floatParmeters().get("EmissionIntensityLayer1");
+                if(intensity != 0.0) {
+                    values.put("emiIntensity1", intensity);
+                    if (this.vectors.containsKey("EmissionColorLayer1")) values.put("emiColor1", color("EmissionColorLayer1", this.vectors, propertyRemap));
+                }
+            }
+            if (this.floatParmeters().containsKey("EmissionIntensityLayer2")) {
+                var intensity = this.floatParmeters().get("EmissionIntensityLayer2");
+                if(intensity != 0.0) {
+                    values.put("emiIntensity2", intensity);
+                    if (this.vectors.containsKey("EmissionColorLayer2")) values.put("emiColor2", color("EmissionColorLayer2", this.vectors, propertyRemap));
+                }
+            }
+            if (this.floatParmeters().containsKey("EmissionIntensityLayer3")) {
+                var intensity = this.floatParmeters().get("EmissionIntensityLayer3");
+                if(intensity != 0.0) {
+                    values.put("emiIntensity3", intensity);
+                    if (this.vectors.containsKey("EmissionColorLayer3")) values.put("emiColor3", color("EmissionColorLayer3", this.vectors, propertyRemap));
+                }
+            }
+            if (this.floatParmeters().containsKey("EmissionIntensityLayer4")) {
+                var intensity = this.floatParmeters().get("EmissionIntensityLayer4");
+                if(intensity != 0.0) {
+                    values.put("emiIntensity4", intensity);
+                    if (this.vectors.containsKey("EmissionColorLayer4")) values.put("emiColor4", color("EmissionColorLayer4", this.vectors, propertyRemap));
+                }
+            }
+            if (this.floatParmeters().containsKey("EmissionIntensityLayer5")) {
+                var intensity = this.floatParmeters().get("EmissionIntensityLayer5");
+                if(intensity != 0.0) {
+                    values.put("emiIntensity5", intensity);
+                    if (this.vectors.containsKey("EmissionColorLayer5")) values.put("emiColor5", color("EmissionColorLayer5", this.vectors, propertyRemap));
+                }
+            }
+
+            var textures = new ArrayList<ApiTexture>();
+
+            if (this.textures().containsKey("BaseColorMap")) textures.add(new ApiTexture("diffuse", source.resolve(this.textures.get("BaseColorMap")).toString()));
+            if (this.textures().containsKey("LayerMaskMap")) textures.add(new ApiTexture("layer", source.resolve(this.textures.get("LayerMaskMap")).toString()));
+            if (this.textures().containsKey("HighlightMaskMap")) textures.add(new ApiTexture("mask", source.resolve(this.textures.get("HighlightMaskMap")).toString()));
+
+            return new ApiMaterial(key, textures, values);
+        }
+
+        private String processShaderType(Map<String, Map<String, String>> shaderParameters) {
+            return "layered";
+        }
+    }
+
+    public record TrackConfig(long duration, long fps) {}
+
     private void processMaterials(String name, Path modelDir, Path targetDir, TRMTR materials, Map<String, String> materialRemap) throws IOException {
-        var list = this.materials.computeIfAbsent(name, a -> new HashMap<>());
+//        var list = this.materials.computeIfAbsent(name, a -> new HashMap<>());
 
         for (int i = 0; i < materials.materialsLength(); i++) {
             var properties = new HashMap<String, Object>();
@@ -383,14 +597,14 @@ public class SVModel extends Model {
             var properties1 = new HashMap<String, Object>();
             properties1.put("type", "layered");
 
-            IntStream.of(1, 2,3, 4).boxed().flatMap(a -> Stream.of("BaseColorLayer" + a, "EmissionIntensityLayer" + a, "EmissionColorLayer" + a)).forEach(s -> {
+            IntStream.of(1, 2,3, 4, 5).boxed().flatMap(a -> Stream.of("BaseColorLayer" + a, "EmissionIntensityLayer" + a, "EmissionColorLayer" + a)).forEach(s -> {
                 var obj = properties.get(s);
 
                 properties1.put(s, obj instanceof Vector4f v ? color(v.x, v.y, v.z) : obj);
             });
 
             ApiMaterial finalMat = mat;
-            var mat1 = new ApiMaterial(name, Stream.<String>of("BaseColorMap", "LayerMaskMap").map(finalMat::getTexture).collect(Collectors.toList()), properties1);
+            var mat1 = new ApiMaterial(name, Stream.of("BaseColorMap", "LayerMaskMap", "HighlightMaskMap").map(finalMat::getTexture).collect(Collectors.toList()), properties1);
 
 
 //            Path path;
@@ -460,7 +674,7 @@ public class SVModel extends Model {
 //                    break;
 //            }
 
-            list.put(materialName, mat1);
+//            list.put(materialName, mat1);
 
             var path = Path.of(mat1.getTexture("BaseColorMap").filePath());
             EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
@@ -470,88 +684,15 @@ public class SVModel extends Model {
             } else {
                 System.out.println();
             }
+            if(mat1.getTexture("HighlightMaskMap") != null) {
+                path = Path.of(mat1.getTexture("HighlightMaskMap").filePath());
+                EyeTextureGenerator.copy(path, targetDir.resolve(path.getFileName()));
+            } else {
+                System.out.println();
+            }
 
             IMCT.TOTAL_SHADERS.add(shader);
         }
-    }
-
-    public static EyeGraph SV_EYE = new EyeGraph(256);
-
-    public static FIreGraph SV_BODY = new FIreGraph(1080);
-    private static FIreGraph SV_FIRE = new FIreGraph(256);
-
-    protected void processEyes(String k, Map<String, ApiMaterial> materials, Path modelDir, Path targetDir) {
-        var left_eye = materials.remove("l_eye");
-        if(left_eye == null) left_eye = materials.remove("left_eye");
-        if(left_eye == null) left_eye = materials.remove("eye_l");
-
-        var right_eye = materials.remove("r_eye");
-        if(right_eye == null) right_eye = materials.remove("right_eye");
-        if(right_eye == null) right_eye = materials.remove("eye_r");
-
-        if(left_eye == null) return;
-
-        var name = k.equals("rare") ? "shiny_" : "";
-
-        var eyes = new ApiMaterial("eyes", List.of(new ApiTexture("BaseColorMap", modelDir.resolve(name + "eyes.png").toAbsolutePath().toString())), new HashMap<>());
-        var image = SV_EYE.update(left_eye, modelDir);
-        EyeTextureGenerator.generate(image, targetDir.resolve(name + "eyes.png").toAbsolutePath());
-        materials.put("eyes", eyes);
-
-        List<Mesh> listToConvert = new ArrayList<>();
-
-        var fire = materials.remove("fire");
-
-        if(fire != null) {
-            EyeTextureGenerator.generate(SV_FIRE.update(fire, modelDir), targetDir.resolve(name + "fire.png").toAbsolutePath());
-            fire = new ApiMaterial("fire", List.of(new ApiTexture("BaseColorMap", modelDir.resolve(name + "fire.png").toAbsolutePath().toString())), new HashMap<>());
-            materials.put("fire", fire);
-        }
-
-        if(k.equals("rare")) return;
-
-        for (Mesh mesh : meshes) {
-            if(mesh.material().name().endsWith("_eye") || mesh.material().name().equals("fire")) {
-                listToConvert.add(mesh);
-            }
-        }
-
-        for (Mesh mesh : listToConvert) {
-            var newMesh = mesh.withNewMaterial(mesh.material().name().endsWith("_eye") ? eyes : fire);
-            meshes.add(newMesh);
-            meshes.remove(mesh);
-        }
-    }
-
-    public static Map<String, String> findTexturePairs(Path directoryPath) {
-        // Create a map to store pairs of textures
-        Map<String, String> texturePairs = new HashMap<>();
-
-        try {
-            // Walk through the directory and its subdirectories
-            Files.walk(directoryPath)
-                    .filter(Files::isRegularFile) // Only consider regular files
-                    .forEach(filePath -> {
-                        String fileName = filePath.toAbsolutePath().toString();
-
-                        // Check if "_rare" is present in the filename without ".png"
-                        if (fileName.contains("_rare") && fileName.endsWith(".png")) {
-                            // Remove "_rare" from the filename and find the corresponding texture name
-                            String textureName = fileName.replace("_rare", "");
-
-                            // Check if the counterpart texture exists
-                            Path counterpartPath = filePath.resolveSibling(textureName);
-                            if (Files.exists(counterpartPath)) {
-                                texturePairs.put(textureName, fileName);
-                            }
-                        }
-                    });
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        return texturePairs;
     }
 
     protected Vector3f toVec3(Vec3 vec) {
@@ -646,11 +787,81 @@ public class SVModel extends Model {
         return IntStream.range(0, list.valuesLength()).mapToObj(list::values).map(a -> new GlbReader.Pair<>(a.time(), a.value())).sorted(Comparator.comparing(GlbReader.Pair::left)).map(GlbReader.Pair::right).toList();
     }
 
+    public static String color(String key, Map<String, Vector4f> rgb, Map<String, String> remap) {
+        var color = color(rgb.get(key));
+
+        if (remap != null) {
+            return remap.getOrDefault(key, color);
+        } else {
+            return color;
+        }
+    }
+
+    public static String color(Vector4f rgb) {
+        Vector3i srgb = new Vector3i();
+        for (int i = 0; i < 3; i++) {
+            float v = rgb.get(i);
+
+            var value = v <= 0.0031308 ? v * 12.92 : (1.055 * Math.pow(v, 1 / 2.4)) - 0.055;
+
+            srgb.setComponent(i, (int) (value * 255));
+        }
+        return Integer.toHexString(new Color(srgb.x, srgb.y, srgb.z).getRGB()).replaceFirst("ff", "#");
+    }
+
+    private static Color createColorFromLinearRGB(Vector4f color) {
+        return createColorFromLinearRGB(color.x, color.y, color.z);
+    }
+
+    private static Color createColorFromLinearRGB(float linearRed, float linearGreen, float linearBlue) {
+        // Ensure values are in the valid range [0.0, 1.0]
+        linearRed = Math.min(1.0f, Math.max(0.0f, linearRed));
+        linearGreen = Math.min(1.0f, Math.max(0.0f, linearGreen));
+        linearBlue = Math.min(1.0f, Math.max(0.0f, linearBlue));
+
+        // Convert linear RGB to gamma-corrected RGB
+        float gammaRed = gammaCorrect(linearRed);
+        float gammaGreen = gammaCorrect(linearGreen);
+        float gammaBlue = gammaCorrect(linearBlue);
+
+        // Create and return a Color object
+        return new Color(gammaRed, gammaGreen, gammaBlue);
+    }
+
+    // Gamma correction function
+    private static float gammaCorrect(float value) {
+        if (value <= 0.04045f) {
+            return 12.92f * value;
+        } else {
+            return (float) (1.055 * Math.pow(value, 1.0 / 2.4) - 0.055);
+        }
+    }
+
+//    public static String color(Vector4f vec) {
+//        return Integer.toHexString(new Color((int) (rgbTosRGB(vec.x) * 255), (int) (rgbTosRGB(vec.y) * 255), (int) (rgbTosRGB(vec.z) * 255)).getRGB()).replaceFirst("ff", "#");
+//    }
+
     public static String color(float red, float green, float blue) {
         return Integer.toHexString(new Color((int) (rgbTosRGB(red) * 255), (int) (rgbTosRGB(green) * 255), (int) (rgbTosRGB(blue) * 255)).getRGB()).replaceFirst("ff", "#");
     }
 
-    private static float rgbTosRGB(float value) {
-        return (float) Math.pow(value, 1/2.2);
+    public static List<Map<String, Map<String, String>>> transformMap(Map<String, Map<String, List<String>>> inputMap, int amount) {
+        List<Map<String, Map<String, String>>> list = new ArrayList<>();
+
+        IntStream.range(0, amount).forEach(i -> {
+            var map = new HashMap<String, Map<String, String>>();
+            inputMap.forEach((material, v) -> {
+                var map1 = map.computeIfAbsent(material, a -> new HashMap<>());
+                v.forEach((property, values) -> {
+                    if (values.size() >= amount) {
+                        map1.put(property, values.get(i));
+                    }
+                });
+            });
+
+            list.add(map);
+        });
+
+        return list;
     }
 }

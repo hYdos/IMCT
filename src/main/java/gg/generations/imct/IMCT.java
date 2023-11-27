@@ -26,12 +26,12 @@ public class IMCT {
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0005\\pm0005_00_00"), SVModel::new, Paths.get("output/0005"));
 
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\smallbatch\\smallbatch\\pm0012_00"), SWSHModel::new, Paths.get("output\\blep\\pm0012_11"));
-        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm1064\\pm1064\\pm1064_11_00"), SVModel::new, Paths.get("output\\pm1064_11_00"));
+        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0493\\pm0493\\pm0493_11_00"), SVModel::new, Paths.get("output10\\pm0493_11_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_01_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_11_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_11_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_01_00"));
 
 //
-        var path = Paths.get("C:\\Users\\water\\Downloads\\smallbatch");
+//        var path = Paths.get("C:\\Users\\water\\Downloads\\smallbatch");
 
 //        var paths = Files.walk(path, 0).flatMap(x -> {
 //            try {
@@ -59,7 +59,7 @@ public class IMCT {
 //            }
 //        }, 0).join();
 
-        System.out.println("Tasks Complete.");
+//        System.out.println("Tasks Complete.");
 //
 //        System.out.println(TOTAL_SHADERS);
 
