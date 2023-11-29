@@ -18,8 +18,11 @@ import gg.generations.imct.util.TrinityUtils;
 import gg.generations.imct.write.GlbReader;
 import org.joml.*;
 
+import java.awt.*;
+import java.lang.Math;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -183,6 +186,8 @@ public class SWSHModel extends Model {
         System.out.println();
     }
 
+//    IntStream.range(0, material.colorsLength()).mapToObj(a -> material.colors(a)).collect(Collectors.toMap(a -> a.name(), a -> new Vector3f(a.color().r(), a.color().g(), a.color().b())))
+
     private void genMaterials(gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model gfbmdl, Path modelDir, Path targetDir) {
         for (int i = 0; i < gfbmdl.materialsLength(); i++) {
             var material = gfbmdl.materials(i);
@@ -205,12 +210,12 @@ public class SWSHModel extends Model {
 
             for (int j = 0; j < material.common().colorsLength(); j++) {
                 var property = material.common().colors(j);
-                properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
+                properties.put(property.name(), createColorFromLinearRGB(new Vector3f(property.color().r(), property.color().g(), property.color().b())));
             }
 
             for (int j = 0; j < material.colorsLength(); j++) {
                 var property = material.colors(j);
-                properties.put(property.name(), new Vector3f(property.color().r(), property.color().g(), property.color().b()));
+                properties.put(property.name(),  createColorFromLinearRGB(new Vector3f(property.color().r(), property.color().g(), property.color().b())));
             }
 
             for (int j = 0; j < material.textureMapsLength(); j++) {
@@ -238,7 +243,21 @@ public class SWSHModel extends Model {
             var shiny = s.equals("rare") ? "" : "shiny_";
 
             map.values().stream().map(a -> new GlbReader.Pair<>(a.getTexture("BaseColorMap"), a.getTexture("LyBaseColorMap"))).forEach(pair -> {
-                var base = Path.of(pair.left().filePath());
+                Path base;
+
+                try {
+                    base = Path.of(pair.left().filePath());
+                } catch (Exception e) {
+                    e.printStackTrace();
+
+                    try {
+                        base = Path.of(pair.right().filePath());
+                    } catch (Exception e1) {
+                        e1.printStackTrace();
+
+                        return;
+                    }
+                }
 
                 if (pair.right() != null && pair.right().filePath().contains("Iris")) {
                     var ly = Path.of(pair.right().filePath());
@@ -254,6 +273,34 @@ public class SWSHModel extends Model {
                 }
             });
         });
+    }
+
+    private static Color createColorFromLinearRGB(Vector3f color) {
+        return createColorFromLinearRGB(color.x, color.y, color.z);
+    }
+
+    private static Color createColorFromLinearRGB(float linearRed, float linearGreen, float linearBlue) {
+        // Ensure values are in the valid range [0.0, 1.0]
+        linearRed = Math.min(1.0f, Math.max(0.0f, linearRed));
+        linearGreen = Math.min(1.0f, Math.max(0.0f, linearGreen));
+        linearBlue = Math.min(1.0f, Math.max(0.0f, linearBlue));
+
+        // Convert linear RGB to gamma-corrected RGB
+        float gammaRed = gammaCorrect(linearRed);
+        float gammaGreen = gammaCorrect(linearGreen);
+        float gammaBlue = gammaCorrect(linearBlue);
+
+        // Create and return a Color object
+        return new Color(gammaRed, gammaGreen, gammaBlue);
+    }
+
+    // Gamma correction function
+    private static float gammaCorrect(float value) {
+        if (value <= 0.04045f) {
+            return 12.92f * value;
+        } else {
+            return (float) (1.055 * Math.pow(value, 1.0 / 2.4) - 0.055);
+        }
     }
 
     private void genMeshes(gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model gfbmdl) {
@@ -382,7 +429,7 @@ public class SWSHModel extends Model {
     }
 
     private String processTextureName(TextureMap rawTexture) {
-        return rawTexture.sampler().replace("Col0Tex", "BaseColorMap");
+        return rawTexture.sampler().replace("Col0Tex", "BaseColorMap").replace("LyCol0Tex", "LyBaseColorMap");
     }
 
     private int getTotalBufferStride(List<Attribute> attributes) {
