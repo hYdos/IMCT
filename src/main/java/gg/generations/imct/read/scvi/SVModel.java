@@ -312,7 +312,7 @@ public class SVModel extends Model {
                 return new Generic(materialProperties, materials);
             })));
 
-            var regularPair = new GlbReader.Pair<>("regular", new Generic(new HashMap<>(), createMaterials(Stream.of(defaultTRMMT))));
+            var regularPair = new GlbReader.Pair<>("normal", new Generic(new HashMap<>(), createMaterials(Stream.of(defaultTRMMT))));
 
 
             if(map.size() == 1 && map.containsKey("rare")) {
@@ -324,6 +324,8 @@ public class SVModel extends Model {
 
 
             map.forEach((variantBase, data) -> {
+                var correctedVariantBase = variantBase.equals("rare") ? "shiny" : variantBase;
+
                 var material = data.materials().get(0);
 
                 if(data.materialProperties() != null && !data.materialProperties().isEmpty()) {
@@ -331,7 +333,7 @@ public class SVModel extends Model {
 
 //                    var properties = data.materialProperties().get("color").tracks().entrySet().stream().collect(Collectors.toMap(a -> a.getKey(), a -> a.getValue().entrySet().stream().collect(Collectors.toMap(b -> b.getKey(), b -> b.getValue().animTracks))));
 
-                    var map1 = data.materialProperties().get("color").tracks().entrySet().stream().map(a -> a.getValue()).flatMap(a -> a.entrySet().stream()).map(a -> new GlbReader.Pair<String, Map<String, List<String>>>(a.getKey(), a.getValue().animTracks())).collect(Collectors.toMap(GlbReader.Pair::left, a -> a.right(), (a, b) -> a));
+                    var map1 = data.materialProperties().get("color").tracks().values().stream().flatMap(a -> a.entrySet().stream()).map(a -> new GlbReader.Pair<String, Map<String, List<String>>>(a.getKey(), a.getValue().animTracks())).collect(Collectors.toMap(GlbReader.Pair::left, a -> a.right(), (a, b) -> a));
 
                     var properties = transformMap(map1, amount);
 
@@ -354,7 +356,7 @@ public class SVModel extends Model {
                             var existing = materials.entrySet().stream().filter(a -> a.getValue().equals(mat)).findAny();
 
 
-                            var materialNameFinal = variantBase + "_" + j + "_" + materialName;
+                            var materialNameFinal = correctedVariantBase + "_" + j + "_" + materialName;
 
                             if (existing.isEmpty()) {
                                 materials.put(materialNameFinal, mat);
@@ -368,7 +370,7 @@ public class SVModel extends Model {
                             }
 
                         }
-                        variants.put(variantBase + "_" + j, materialProxies);
+                        variants.put(correctedVariantBase + "_" + j, materialProxies);
 
                     }
 
@@ -385,7 +387,7 @@ public class SVModel extends Model {
 
                         var existing = materials.entrySet().stream().filter(a -> a.getValue().equals(mat)).findAny();
 
-                        var materialNameFinal = variantBase + "_" + materialName;
+                        var materialNameFinal = correctedVariantBase + "_" + materialName;
 
                         if(existing.isEmpty()) {
                             materials.put(materialNameFinal, mat);
@@ -399,7 +401,7 @@ public class SVModel extends Model {
                         }
                     });
 
-                    variants.put(variantBase, materialProxies);
+                    variants.put(correctedVariantBase, materialProxies);
                 }
 
             });
