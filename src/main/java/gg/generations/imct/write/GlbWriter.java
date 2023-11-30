@@ -179,11 +179,9 @@ public class GlbWriter {
                     props.addProperty(key, f);
                 } else if(value instanceof String string) {
                     props.addProperty(key, string);
-                }/*
-
-                if (value != null && !(value instanceof Vector4f)) {
-                    props.add(key, value instanceof String s ? new JsonPrimitive((String) value) : new JsonPrimitive((Float) value));
-                } */else System.out.println(key);
+                } else if(value instanceof Boolean bool) {
+                    props.addProperty(key, bool);
+                }else System.out.println(key);
             });
 
             json1.add("values", props);

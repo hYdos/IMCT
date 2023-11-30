@@ -158,13 +158,11 @@ public class SVModel extends Model {
             materials.put(k, v.toApiMaterial(modelDir, k));
         });
 
-
-
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
-//            System.out.println("Processing Mesh Info " + i);
+            System.out.println("Processing Mesh Info " + i);
             for (int mesh = 0; mesh < meshInfo.get(i).meshesLength(); mesh++) {
-//                System.out.println("Processing Mesh " + i);
+                System.out.println("Processing Mesh " + i);
                 var info = meshInfo.get(i).meshes(mesh);
                 var data = meshData.get(i).buffers(mesh);
                 var vertexBuffer = data.vertexBuffer(0).bufferAsByteBuffer();
@@ -176,10 +174,13 @@ public class SVModel extends Model {
 
                 var attributes = new ArrayList<Attribute>();
                 for (var j = 0; j < rawAttributes.attrsLength(); j++) {
-                    attributes.add(new Attribute(
-                            AttributeType.get(rawAttributes.attrs(j).attribute()),
-                            AttributeSize.get(rawAttributes.attrs(j).type())
-                    ));
+                        attributes.add(new Attribute(
+                                AttributeType.get(rawAttributes.attrs(j).attribute()),
+                                AttributeSize.get(rawAttributes.attrs(j).type()),
+                                rawAttributes.attrs(j).attributeLayer()
+                        ));
+
+
                 }
 
                 var indices = new ArrayList<Integer>();
@@ -191,6 +192,9 @@ public class SVModel extends Model {
                 var boneIds = new ArrayList<Vector4i>();
                 var binormals = new ArrayList<Vector3f>();
                 var uvs = new ArrayList<Vector2f>();
+                var uv2 = new ArrayList<Vector2f>();
+                var uv3 = new ArrayList<Vector2f>();
+                var uv4 = new ArrayList<Vector2f>();
 
                 var realIdxBuffer = idxBuffer.bufferAsByteBuffer();
                 for (var j = 0; j < idxBuffer.bufferLength() / idxLayout.size; j++) {
@@ -203,8 +207,12 @@ public class SVModel extends Model {
 
                 var vertexCount = data.vertexBuffer(0).bufferLength() / info.attributes(0).size(0).size();
 
+                int maxUvLayer = 0;
+
                 for (var j = 0; j < vertexCount; j++) {
                     for (var attribute : attributes) {
+                        int uvLayer = 0;
+
                         switch (attribute.type) {
                             case POSITION -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RGB_32_FLOAT) {
@@ -243,9 +251,19 @@ public class SVModel extends Model {
 
                             case TEXCOORD -> {
                                 if (Objects.requireNonNull(attribute.size) == AttributeSize.RG_32_FLOAT) {
+                                    maxUvLayer = Math.max(uvLayer, (int) attribute.layer);
+
                                     var x = vertexBuffer.getFloat();
                                     var y = 1.0f - vertexBuffer.getFloat();
-                                    uvs.add(new Vector2f(x, y));
+                                    var uv = new Vector2f(x, y);
+
+                                    (switch ((int) attribute.layer) {
+                                        case 1 -> uv2;
+                                        case 2 -> uv3;
+                                        case 3 -> uv4;
+                                        default -> uvs;
+                                    }).add(uv);
+
                                 } else throw new RuntimeException("Unexpected uv format: " + attribute.type);
                             }
 
@@ -276,8 +294,23 @@ public class SVModel extends Model {
                     var subMesh = info.materials(j);
                     var subIdxBuffer = indices.subList((int) subMesh.polyOffset(), (int) (subMesh.polyOffset() + subMesh.polyCount()));
                     if (!Objects.requireNonNull(info.meshName()).contains("lod")) {
+                        int usedUvLayer = 0;
+
+                        if(maxUvLayer > 0) {
+                            var namesplit = subMesh.materialName().split("_");
+
+                            usedUvLayer = Integer.getInteger(namesplit[namesplit.length - 1], 0);
+                        }
+
+                        var usedUv = (switch (usedUvLayer) {
+                            case 1 -> uv2;
+                            case 2 -> uv3;
+                            case 3 -> uv4;
+                            default -> uvs;
+                        });
+
                         materialRemap.computeIfAbsent(subMesh.materialName(), a -> new ArrayList<>()).add(info.meshName() + "_" + subMesh.materialName());
-                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), subMesh.materialName(), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, uvs));
+                        meshes.add(new Mesh(info.meshName() + "_" + subMesh.materialName(), subMesh.materialName(), subIdxBuffer, positions, normals, tangents, colors, weights, boneIds, binormals, usedUv));
                     }
                 }
             }
@@ -495,6 +528,8 @@ public class SVModel extends Model {
             var values = new HashMap<String, Object>();
             values.put("shader", processShaderType(shaderParameters));
 
+            values.put("useLight", !shaderParameters.containsKey("Unlit"));
+
             if (this.vectors.containsKey("BaseColorLayer1")) values.put("baseColor1", color("BaseColorLayer1", this.vectors, propertyRemap));
             if (this.vectors.containsKey("BaseColorLayer2")) values.put("baseColor2", color("BaseColorLayer2", this.vectors, propertyRemap));
             if (this.vectors.containsKey("BaseColorLayer3")) values.put("baseColor3", color("BaseColorLayer3", this.vectors, propertyRemap));
@@ -703,8 +738,7 @@ public class SVModel extends Model {
 
     private record Attribute(
             AttributeType type,
-            AttributeSize size
-    ) {
+            AttributeSize size, long layer) {
     }
 
     public enum AttributeType {
@@ -806,9 +840,14 @@ public class SVModel extends Model {
 
             var value = v <= 0.0031308 ? v * 12.92 : (1.055 * Math.pow(v, 1 / 2.4)) - 0.055;
 
-            srgb.setComponent(i, (int) (value * 255));
+            srgb.setComponent(i, Math.min((int) (value * 255), 255));
         }
-        return Integer.toHexString(new Color(srgb.x, srgb.y, srgb.z).getRGB()).replaceFirst("ff", "#");
+
+        try {
+            return Integer.toHexString(new Color(srgb.x, srgb.y, srgb.z).getRGB()).replaceFirst("ff", "#");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static Color createColorFromLinearRGB(Vector4f color) {
