@@ -8,6 +8,7 @@ import gg.generations.imct.api.Model;
 import gg.generations.imct.read.scvi.SVModel;
 import gg.generations.imct.read.scvi.flatbuffers.Titan.Model.*;
 import gg.generations.imct.util.TrinityUtils;
+import gg.generations.rarecandy.tools.gui.RareCandyCanvas;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

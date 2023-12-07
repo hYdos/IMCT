@@ -1,11 +1,13 @@
 package gg.generations.imct;
 
+import gg.generations.imct.read.SmdModel;
 import gg.generations.imct.read.la.LAModel;
 import gg.generations.imct.read.letsgo.LGModel;
 import gg.generations.imct.read.scvi.SVModel;
 import gg.generations.imct.read.swsh.SWSHModel;
 import gg.generations.imct.write.GlbWriter;
-import nu.pattern.OpenCV;
+import gg.generations.rarecandy.tools.gui.DialogueUtils;
+import org.lwjgl.util.nfd.NativeFileDialog;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -20,13 +22,31 @@ public class IMCT {
 
 
     public static void main(String[] args) throws IOException {
+        NativeFileDialog.NFD_Init();
+
+        var output = DialogueUtils.chooseFolder();
+
+        if(output == null) return;
+
+        var input = DialogueUtils.chooseFolder();
+
+        while (input != null) {
+            try {
+                GlbWriter.write(input, SVModel::new, output.resolve(input.getFileName()).toAbsolutePath());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            input = DialogueUtils.chooseFolder();
+        }
+
+
 
 //        GlbWriter.write(new SVModel(Paths.get("F:\\PokemonModels\\SV\\pokemon\\data\\pm0006\\pm0006_00_00")), Paths.get("output/ScarletViolet.glb"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0004\\pm0004_00_00"), SVModel::new, Paths.get("output/0004"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0005\\pm0005_00_00"), SVModel::new, Paths.get("output/0005"));
 
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\smallbatch\\smallbatch\\pm0012_00"), SWSHModel::new, Paths.get("output\\blep\\pm0012_11"));
-        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0146\\pm0146\\pm0146_00_00"), SVModel::new, Paths.get("output10\\pm0146_00_00"));
+//        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\BrokenPokemon_2\\BrokenPokemon\\pm1030\\pm1030_00_00"), SVModel::new, Paths.get("output10\\pm1030_00_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_01_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_11_00"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\pm0025\\pm0025_11_00"), SVModel::new, Paths.get("output\\pikachu\\pm0025_01_00"));
 

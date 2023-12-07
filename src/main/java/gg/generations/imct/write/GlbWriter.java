@@ -109,17 +109,17 @@ public class GlbWriter {
 
 
 
-            Files.writeString(path.resolve("config.json"), generateJson(scale, model.materials, model.variants, model.meshes));
+//            Files.writeString(path.resolve("config.json"), generateJson(scale, model.materials, model.variants, model.meshes));
 
-            model.materials.values().stream().flatMap(a -> a.textures().stream()).map(a -> a.filePath()).distinct().forEach(texture -> {
-                var target = Path.of(texture);
-
-                try {
-                    Files.copy(target, path.resolve(target.getFileName()));
-                } catch (IOException e) {
+//            model.materials.values().stream().flatMap(a -> a.textures().stream()).map(a -> a.filePath()).distinct().forEach(texture -> {
+//                var target = Path.of(texture);
+//
+//                try {
+//                    Files.copy(target, path.resolve(target.getFileName()));
+//                } catch (IOException e) {
 //                    throw new RuntimeException(e);
-                }
-            });
+//                }
+//            });
 
             // Pass the scene to the model builder. It will take care
             // of the other model elements that are contained in the scene.
@@ -137,8 +137,8 @@ public class GlbWriter {
         }
 
         try {
-            Files.walk(input).filter(a -> a.toString().endsWith("tranm") || a.toString().endsWith("gfbanm")).forEach(a -> copy(a, path));
-
+//            Files.walk(input).filter(a -> a.toString().endsWith("tranm") || a.toString().endsWith("gfbanm")).forEach(a -> copy(a, path));
+//
             var list = Files.walk(path).toList();
 
             PixelmonArchiveBuilder.convertToPk(path,

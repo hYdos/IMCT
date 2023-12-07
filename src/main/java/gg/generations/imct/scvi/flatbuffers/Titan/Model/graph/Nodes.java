@@ -1,21 +1,12 @@
 package gg.generations.imct.scvi.flatbuffers.Titan.Model.graph;
 
-import org.joml.Vector4i;
-import org.opencv.core.Mat;
-import org.opencv.imgcodecs.Imgcodecs;
-
 import javax.imageio.ImageIO;
 import javax.swing.*;
-import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
-import java.awt.image.DataBufferByte;
 import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 public class Nodes {
     public static BufferedImage DEFAULT_IMAGE = new BufferedImage(1,1, BufferedImage.TYPE_INT_ARGB);

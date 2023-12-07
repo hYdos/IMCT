@@ -136,13 +136,13 @@ public class SVModel extends Model {
             parent.addChild(node);
         }
 
-        if(joints.stream().noneMatch(a -> a.getName().equals("Origin"))) {
+        if(joints.stream().noneMatch(a -> a.getName().equalsIgnoreCase("Origin"))) {
             var current = joints.get(0).getParent();
 
             while (current != null) {
                 joints.add((DefaultNodeModel) current);
 
-                if (current.getName().equals("Origin")) {
+                if (current.getName().equalsIgnoreCase("Origin")) {
                     current = null;
                 } else {
                     current = current.getParent();
@@ -150,13 +150,7 @@ public class SVModel extends Model {
             }
         }
 
-        // Process material data;
-
-        var defaultTRMMT = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
-
-        createMaterials(Stream.of(defaultTRMMT)).get(0).forEach((k, v) -> {
-            materials.put(k, v.toApiMaterial(modelDir, k));
-        });
+//        genMaterial(modelDir, targetDir, trmdl);
 
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
@@ -315,131 +309,6 @@ public class SVModel extends Model {
                 }
             }
 
-
-            // Process extra material variants (shiny)
-
-            var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt")));
-
-            var map = new HashMap<>(IntStream.range(0, extraMaterials.materialLength()).mapToObj(extraMaterials::material).collect(Collectors.toMap(MMT::name, mtt -> {
-                var trmtrs = IntStream.range(0, mtt.materialNameLength()).mapToObj(mtt::materialName).map(a -> TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(a, "Material name was null"))))).toList();
-
-
-                var materials = createMaterials(trmtrs.isEmpty() ? Stream.of(defaultTRMMT) : trmtrs.stream());
-
-                var materialProperties = IntStream.range(0, mtt.materialPropertiesLength()).mapToObj(mtt::materialProperties).collect(Collectors.toMap(MaterialProperties::name, materialProperties1 -> {
-                    var tracm = TRACM.getRootAsTRACM(materialProperties1.tracm().bytebufferAsByteBuffer());
-
-                    var tracks = IntStream.range(0, tracm.tracksLength()).mapToObj(tracm::tracks).collect(Collectors.toMap(gg.generations.imct.read.scvi.flatbuffers.Titan.Model.Animaton.Track::trackPath, a -> IntStream.range(0, a.materialAnimation().materialTrackLength()).mapToObj(j -> a.materialAnimation().materialTrack(j)).collect(Collectors.toMap(track -> track.name(), trackMaterial -> new MaterialTrack(IntStream.range(0, trackMaterial.animValuesLength()).mapToObj(trackMaterial::animValues).collect(Collectors.toMap(TrackMaterialAnim::name, a1 -> extractedColors(a1.list()))))))));
-
-                    var mappers = new HashMap<String, Map<String, List<String>>>();
-                    IntStream.range(0, materialProperties1.mappersLength()).mapToObj(materialProperties1::mappers).forEach(materialMapper -> {
-                        var map1 = mappers.computeIfAbsent(materialMapper.meshName(), a -> new HashMap<>());
-                        map1.computeIfAbsent(materialMapper.materialName(), a -> new ArrayList<>()).add(materialMapper.layerName());
-                    });
-
-                    var config = new TrackConfig(tracm.config().framerate(), tracm.config().duration());
-
-                    return new MaterialProperty(config, tracks, mappers);
-                }));
-
-                return new Generic(materialProperties, materials);
-            })));
-
-            var regularPair = new GlbReader.Pair<>("normal", new Generic(new HashMap<>(), createMaterials(Stream.of(defaultTRMMT))));
-
-
-            if(map.size() == 1 && map.containsKey("rare")) {
-                map.put(regularPair.left(), regularPair.right());
-            }
-
-            var variantMap = new HashMap<String, Map<String, String>>();
-
-
-
-            map.forEach((variantBase, data) -> {
-                var correctedVariantBase = variantBase.equals("rare") ? "shiny" : variantBase;
-
-                var material = data.materials().get(0);
-
-                if(data.materialProperties() != null && !data.materialProperties().isEmpty()) {
-                    var amount = data.materialProperties().entrySet().stream().flatMap(a -> a.getValue().tracks().values().stream()).map(a -> a.values()).flatMap(a -> a.stream()).flatMap(a -> a.animTracks().values().stream()).mapToInt(a -> a.size()).max().getAsInt();
-
-//                    var properties = data.materialProperties().get("color").tracks().entrySet().stream().collect(Collectors.toMap(a -> a.getKey(), a -> a.getValue().entrySet().stream().collect(Collectors.toMap(b -> b.getKey(), b -> b.getValue().animTracks))));
-
-                    var map1 = data.materialProperties().get("color").tracks().entrySet().stream().map(a -> a.getValue()).flatMap(a -> a.entrySet().stream()).map(a -> new GlbReader.Pair<String, Map<String, List<String>>>(a.getKey(), a.getValue().animTracks())).collect(Collectors.toMap(GlbReader.Pair::left, a -> a.right(), (a, b) -> a));
-                    var properties = transformMap(map1, amount);
-
-
-                    for (int j = 0; j < amount; j++) {
-                        var materialProxies = new HashMap<String, String>();
-
-                        for (Map.Entry<String, Material> entry : material.entrySet()) {
-                            String materialName = entry.getKey();
-                            Material v = entry.getValue();
-                            var meshName = materialRemap.get(materialName);
-
-                            if (meshName == null) throw new RuntimeException("Material needs mesh!");
-
-
-                            var m = properties.get(j).get(materialName);
-
-                            var mat = v.toApiMaterial(modelDir, materialName, m);
-
-                            var existing = materials.entrySet().stream().filter(a -> a.getValue().equals(mat)).findAny();
-
-
-                            var materialNameFinal = variantBase + "_" + materialName;
-
-                            if (existing.isEmpty()) {
-                                materials.put(variantBase, mat);
-                            } else {
-                                variantBase = existing.get().getKey();
-                            }
-
-
-                            for (String name : meshName) {
-                                materialProxies.put(name, variantBase);
-                            }
-
-                        }
-                        variants.put(correctedVariantBase + "_" + j, materialProxies);
-
-                    }
-
-                } else {
-
-                    var materialProxies = new HashMap<String, String>();
-
-                    material.forEach((materialName, v) -> {
-                        var mat = v.toApiMaterial(modelDir, materialName);
-
-                        var meshName = materialRemap.get(materialName);
-
-                        if(meshName == null) throw new RuntimeException("Material needs mesh!");
-
-                        var existing = materials.entrySet().stream().filter(a -> a.getValue().equals(mat)).findAny();
-
-                        var materialNameFinal = correctedVariantBase + "_" + materialName;
-
-                        if(existing.isEmpty()) {
-                            materials.put(materialNameFinal, mat);
-                        } else {
-                            materialNameFinal = existing.get().getKey();
-                        }
-
-
-                        for (String name : meshName) {
-                            materialProxies.put(name, materialNameFinal);
-                        }
-                    });
-
-                    variants.put(correctedVariantBase, materialProxies);
-                }
-
-            });
-
-
-
 //        System.out.println();
 
 
@@ -458,6 +327,137 @@ public class SVModel extends Model {
 //                throw new RuntimeException("Fuck", e);
 //            }
         }
+    }
+
+    private void genMaterial(Path modelDir, Path targetDir, TRMDL trmdl) throws IOException {
+        // Process material data;
+
+        var defaultTRMMT = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
+
+        createMaterials(Stream.of(defaultTRMMT)).get(0).forEach((k, v) -> {
+            materials.put(k, v.toApiMaterial(modelDir, k));
+        });
+
+        // Process extra material variants (shiny)
+
+        var extraMaterials = TRMMT.getRootAsTRMMT(read(modelDir.resolve(modelDir.getFileName() + ".trmmt")));
+
+        var map = new HashMap<>(IntStream.range(0, extraMaterials.materialLength()).mapToObj(extraMaterials::material).collect(Collectors.toMap(MMT::name, mtt -> {
+            var trmtrs = IntStream.range(0, mtt.materialNameLength()).mapToObj(mtt::materialName).map(a -> TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(a, "Material name was null"))))).toList();
+
+
+            var materials = createMaterials(trmtrs.isEmpty() ? Stream.of(defaultTRMMT) : trmtrs.stream());
+
+            var materialProperties = IntStream.range(0, mtt.materialPropertiesLength()).mapToObj(mtt::materialProperties).collect(Collectors.toMap(MaterialProperties::name, materialProperties1 -> {
+                var tracm = TRACM.getRootAsTRACM(materialProperties1.tracm().bytebufferAsByteBuffer());
+
+                var tracks = IntStream.range(0, tracm.tracksLength()).mapToObj(tracm::tracks).collect(Collectors.toMap(gg.generations.imct.read.scvi.flatbuffers.Titan.Model.Animaton.Track::trackPath, a -> IntStream.range(0, a.materialAnimation().materialTrackLength()).mapToObj(j -> a.materialAnimation().materialTrack(j)).collect(Collectors.toMap(track -> track.name(), trackMaterial -> new MaterialTrack(IntStream.range(0, trackMaterial.animValuesLength()).mapToObj(trackMaterial::animValues).collect(Collectors.toMap(TrackMaterialAnim::name, a1 -> extractedColors(a1.list()))))))));
+
+                var mappers = new HashMap<String, Map<String, List<String>>>();
+                IntStream.range(0, materialProperties1.mappersLength()).mapToObj(materialProperties1::mappers).forEach(materialMapper -> {
+                    var map1 = mappers.computeIfAbsent(materialMapper.meshName(), a -> new HashMap<>());
+                    map1.computeIfAbsent(materialMapper.materialName(), a -> new ArrayList<>()).add(materialMapper.layerName());
+                });
+
+                var config = new TrackConfig(tracm.config().framerate(), tracm.config().duration());
+
+                return new MaterialProperty(config, tracks, mappers);
+            }));
+
+            return new Generic(materialProperties, materials);
+        })));
+
+        var regularPair = new GlbReader.Pair<>("normal", new Generic(new HashMap<>(), createMaterials(Stream.of(defaultTRMMT))));
+
+
+        if(map.size() == 1 && map.containsKey("rare")) {
+            map.put(regularPair.left(), regularPair.right());
+        }
+
+
+        Files.writeString(targetDir.getParent().resolve(modelDir.getFileName() + "_materials.json"), new GsonBuilder().setPrettyPrinting().create().toJson(map));
+
+
+        map.forEach((variantBase, data) -> {
+            var correctedVariantBase = variantBase.equals("rare") ? "shiny" : variantBase;
+
+            var material = data.materials().get(0);
+
+            if(data.materialProperties() != null && !data.materialProperties().isEmpty()) {
+                var amount = data.materialProperties().entrySet().stream().flatMap(a -> a.getValue().tracks().values().stream()).map(a -> a.values()).flatMap(a -> a.stream()).flatMap(a -> a.animTracks().values().stream()).mapToInt(a -> a.size()).max().getAsInt();
+
+//                    var properties = data.materialProperties().get("color").tracks().entrySet().stream().collect(Collectors.toMap(a -> a.getKey(), a -> a.getValue().entrySet().stream().collect(Collectors.toMap(b -> b.getKey(), b -> b.getValue().animTracks))));
+
+                var map1 = data.materialProperties().get("color").tracks().entrySet().stream().map(a -> a.getValue()).flatMap(a -> a.entrySet().stream()).map(a -> new GlbReader.Pair<String, Map<String, List<String>>>(a.getKey(), a.getValue().animTracks())).collect(Collectors.toMap(GlbReader.Pair::left, a -> a.right(), (a, b) -> a));
+                var properties = transformMap(map1, amount);
+
+
+                for (int j = 0; j < amount; j++) {
+                    var materialProxies = new HashMap<String, String>();
+
+                    for (Map.Entry<String, Material> entry : material.entrySet()) {
+                        String materialName = entry.getKey();
+                        Material v = entry.getValue();
+                        var meshName = materialRemap.get(materialName);
+
+                        if (meshName == null) throw new RuntimeException("Material needs mesh!");
+
+
+                        var m = properties.get(j).get(materialName);
+
+                        var mat = v.toApiMaterial(modelDir, materialName, m);
+
+                        var existing = materials.entrySet().stream().filter(a -> a.getValue().equals(mat)).findAny();
+
+
+                        var materialNameFinal = variantBase + "_" + materialName;
+
+                        if (existing.isEmpty()) {
+                            materials.put(variantBase, mat);
+                        } else {
+                            variantBase = existing.get().getKey();
+                        }
+
+
+                        for (String name : meshName) {
+                            materialProxies.put(name, variantBase);
+                        }
+
+                    }
+                    variants.put(correctedVariantBase + "_" + j, materialProxies);
+
+                }
+
+            } else {
+
+                var materialProxies = new HashMap<String, String>();
+
+                material.forEach((materialName, v) -> {
+                    var mat = v.toApiMaterial(modelDir, materialName);
+
+                    var meshName = materialRemap.get(materialName);
+
+                    if(meshName == null) throw new RuntimeException("Material needs mesh!");
+
+                    var existing = materials.entrySet().stream().filter(a -> a.getValue().equals(mat)).findAny();
+
+                    var materialNameFinal = correctedVariantBase + "_" + materialName;
+
+                    if(existing.isEmpty()) {
+                        materials.put(materialNameFinal, mat);
+                    } else {
+                        materialNameFinal = existing.get().getKey();
+                    }
+
+
+                    for (String name : meshName) {
+                        materialProxies.put(name, materialNameFinal);
+                    }
+                });
+
+                variants.put(correctedVariantBase, materialProxies);
+            }
+        });
     }
 
     private static String vectorToString(Vector4f color) {
@@ -525,6 +525,17 @@ public class SVModel extends Model {
 
         public ApiMaterial toApiMaterial(Path source, String key, Map<String, String> propertyRemap) {
             var values = new HashMap<String, Object>();
+            var textures = new ArrayList<ApiTexture>();
+
+            if(shaderParameters.containsKey("InsideEmissionParallax")) {
+                values.put("shader", "paradox");
+                if (this.textures().containsKey("EmissionColorMap")) textures.add(new ApiTexture("backgroundAlb", source.resolve(this.textures.get("EmissionColorMap")).toString()));
+                textures.add(new ApiTexture("effectMask", "paradox_mask"));
+                if (this.vectors.containsKey("EmissionColorLayer1")) values.put("backgroundColor", color("EmissionColorLayer1", this.vectors, propertyRemap));
+
+                return new ApiMaterial(key, textures, values);
+            }
+
             values.put("shader", processShaderType(shaderParameters));
 
             values.put("useLight", !shaderParameters.containsKey("Unlit"));
@@ -569,8 +580,6 @@ public class SVModel extends Model {
                     if (this.vectors.containsKey("EmissionColorLayer5")) values.put("emiColor5", color("EmissionColorLayer5", this.vectors, propertyRemap));
                 }
             }
-
-            var textures = new ArrayList<ApiTexture>();
 
             if (this.textures().containsKey("BaseColorMap")) textures.add(new ApiTexture("diffuse", source.resolve(this.textures.get("BaseColorMap")).toString()));
             if (this.textures().containsKey("LayerMaskMap")) textures.add(new ApiTexture("layer", source.resolve(this.textures.get("LayerMaskMap")).toString()));
