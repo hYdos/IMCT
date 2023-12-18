@@ -44,7 +44,7 @@ dependencies {
 
     implementation("org.apache.commons", "commons-compress", "1.24.0")
 
-    implementation("de.javagl:jgltf-model:2.0.4-SNAPSHOT")
+//    implementation("de.javagl:jgltf-model:2.0.4-SNAPSHOT")
 
     implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
 
