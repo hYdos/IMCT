@@ -192,6 +192,8 @@ public class SWSHModel extends Model {
                 }
 
                 materialIds.put(i, materialName);
+
+                System.out.println();
 //                var material1 = materials.computeIfAbsent("regular", mat -> new HashMap<>()).computeIfAbsent(materialName, key -> new ApiMaterial(
 //                        key,
 //                        textures,

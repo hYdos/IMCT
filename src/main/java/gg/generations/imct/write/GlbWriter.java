@@ -17,6 +17,7 @@ import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
 import gg.generations.imct.read.scvi.ImageDisplayComponent;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
+import gg.generations.rarecandy.pokeutils.PixelAsset;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
 
@@ -35,6 +36,8 @@ import java.util.stream.Collectors;
 
 public class GlbWriter {
     private static Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
+    public static final Path loading = Path.of("loading_additional");
 
     public static void copy(Path src, Path dst) {
         try {
@@ -84,7 +87,7 @@ public class GlbWriter {
 
             for (var mesh : model.meshes) {
                 max = Math.max(max, mesh.positions().stream().mapToDouble(a -> a.y).max().getAsDouble());
-                min = Math.min(min,mesh.positions().stream().mapToDouble(a -> a.y).min().getAsDouble());
+                min = Math.min(min, mesh.positions().stream().mapToDouble(a -> a.y).min().getAsDouble());
 
                 var meshModel = new DefaultMeshModel();
                 var meshPrimitiveModel = mesh.create().build();
@@ -100,26 +103,25 @@ public class GlbWriter {
                 root.addChild(nodeModel);
             }
 
-            var scale = 1f/(max - min);
+            var scale = 1f / (max - min);
 
 //            model.materials.get("regular")
 //                    .keySet().stream().map(s -> checkShiny(s, model, path)).reduce(CompletableFuture.completedFuture(null), (BiFunction<CompletableFuture<? extends Object>, Runnable, CompletableFuture<? extends Object>>) CompletableFuture::thenRun, CompletableFuture::allOf).join();
-
+//
 //            CompletableFuture.completedFuture(null).thenRun(checkShiny("eyes", model, path)).thenRun(checkShiny("fire", model, path)).join();
 
 
-
-//            Files.writeString(path.resolve("config.json"), generateJson(scale, model.materials, model.variants, model.meshes));
-
-//            model.materials.values().stream().flatMap(a -> a.textures().stream()).map(a -> a.filePath()).distinct().forEach(texture -> {
-//                var target = Path.of(texture);
+            Files.writeString(path.resolve("config.json"), generateJson(scale, model.materials, model.variants, model.meshes));
 //
-//                try {
-//                    Files.copy(target, path.resolve(target.getFileName()));
-//                } catch (IOException e) {
+            model.materials.values().stream().flatMap(a -> a.textures().stream()).map(a -> a.filePath()).distinct().forEach(texture -> {
+                var target = Path.of(texture);
+
+                try {
+                    Files.copy(target, path.resolve(target.getFileName()));
+                } catch (IOException e) {
 //                    throw new RuntimeException(e);
-//                }
-//            });
+                }
+            });
 
             // Pass the scene to the model builder. It will take care
             // of the other model elements that are contained in the scene.
@@ -137,13 +139,13 @@ public class GlbWriter {
         }
 
         try {
-//            Files.walk(input).filter(a -> a.toString().endsWith("tranm") || a.toString().endsWith("gfbanm")).forEach(a -> copy(a, path));
-//
-            var list = Files.walk(path).toList();
+            Files.walk(input).filter(a -> a.toString().endsWith("tranm") || a.toString().endsWith("gfbanm")).forEach(a -> copy(a, path));
 
-            PixelmonArchiveBuilder.convertToPk(path,
-                    list,
-                    path.getParent().resolve(path.getFileName().toString() + ".pk"));
+//            var list = Files.walk(path).toList();
+
+//            PixelmonArchiveBuilder.convertToPk(path,
+//                    list,
+//                    path.getParent().resolve(path.getFileName().toString() + ".pk"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -173,18 +175,20 @@ public class GlbWriter {
 
             json1.add("images", textures);
 
-            var props = new JsonObject();
-            material.properties().forEach((key, value) -> {
-                if(value instanceof Float f) {
-                    props.addProperty(key, f);
-                } else if(value instanceof String string) {
-                    props.addProperty(key, string);
-                } else if(value instanceof Boolean bool) {
-                    props.addProperty(key, bool);
-                }else System.out.println(key);
-            });
+            if(!material.properties().isEmpty()) {
+                var props = new JsonObject();
+                material.properties().forEach((key, value) -> {
+                    if (value instanceof Float f) {
+                        props.addProperty(key, f);
+                    } else if (value instanceof String string) {
+                        props.addProperty(key, string);
+                    } else if (value instanceof Boolean bool) {
+                        props.addProperty(key, bool);
+                    } else System.out.println(key);
+                });
 
-            json1.add("values", props);
+                json1.add("values", props);
+            }
 
 
 

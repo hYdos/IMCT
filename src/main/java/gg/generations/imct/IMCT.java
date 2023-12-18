@@ -6,6 +6,9 @@ import gg.generations.imct.read.letsgo.LGModel;
 import gg.generations.imct.read.scvi.SVModel;
 import gg.generations.imct.read.swsh.SWSHModel;
 import gg.generations.imct.write.GlbWriter;
+import gg.generations.rarecandy.pokeutils.Pair;
+import gg.generations.rarecandy.pokeutils.PixelAsset;
+import gg.generations.rarecandy.tools.ModelViewer;
 import gg.generations.rarecandy.tools.gui.DialogueUtils;
 import org.lwjgl.util.nfd.NativeFileDialog;
 
@@ -15,6 +18,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 public class IMCT {
     public static final Set<String> TOTAL_SHADERS = new HashSet<>();
@@ -24,22 +28,32 @@ public class IMCT {
     public static void main(String[] args) throws IOException {
         NativeFileDialog.NFD_Init();
 
-        var output = DialogueUtils.chooseFolder();
-
-        if(output == null) return;
-
-        var input = DialogueUtils.chooseFolder();
-
-        while (input != null) {
+        new ModelViewer(pairConsumer -> {
             try {
-                GlbWriter.write(input, SVModel::new, output.resolve(input.getFileName()).toAbsolutePath());
+                var input = DialogueUtils.chooseFolder();
+
+                var output = GlbWriter.loading.resolve(input.getFileName()).toAbsolutePath();
+
+                GlbWriter.write(input, SVModel::new, output);
+
+                pairConsumer.accept(new Pair<>(output, new PixelAsset(output)));
             } catch (Exception e) {
-                e.printStackTrace();
+                throw new RuntimeException(e);
             }
-            input = DialogueUtils.chooseFolder();
-        }
-
-
+        }, true);
+//
+//        var input = DialogueUtils.chooseFolder();
+//
+//        while (input != null) {
+//            try {
+//                GlbWriter.write(input, SVModel::new, GlbWriter.loading.resolve(input.getFileName()).toAbsolutePath());
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            }
+//            input = DialogueUtils.chooseFolder();
+//        }
+//
+//
 
 //        GlbWriter.write(new SVModel(Paths.get("F:\\PokemonModels\\SV\\pokemon\\data\\pm0006\\pm0006_00_00")), Paths.get("output/ScarletViolet.glb"));
 //        GlbWriter.write(Paths.get("C:\\Users\\water\\Downloads\\SV-Poke\\pokemon\\data\\pm0004\\pm0004_00_00"), SVModel::new, Paths.get("output/0004"));

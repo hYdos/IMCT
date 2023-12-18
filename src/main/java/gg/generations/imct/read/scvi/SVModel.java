@@ -15,6 +15,8 @@ import gg.generations.imct.write.GlbReader;
 import org.joml.*;
 
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.lang.Math;
@@ -28,6 +30,12 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class SVModel extends Model {
+
+    private final Gson gson = new GsonBuilder().setPrettyPrinting().registerTypeAdapter(Vector4f.class, (JsonSerializer<Vector4f>) (src, typeOfSrc, context) -> {
+        var color = vectorToString(src);
+
+        return new JsonPrimitive(color);
+    }).create();
 
     record InitTrack() {}
 
@@ -149,8 +157,6 @@ public class SVModel extends Model {
                 }
             }
         }
-
-//        genMaterial(modelDir, targetDir, trmdl);
 
         // Process mesh data
         for (var i = 0; i < meshInfo.size(); i++) {
@@ -311,14 +317,8 @@ public class SVModel extends Model {
 
 //        System.out.println();
 
+            genMaterial(modelDir, targetDir, trmdl);
 
-            var gson = new GsonBuilder().setPrettyPrinting().registerTypeAdapter(Vector4f.class, (JsonSerializer<Vector4f>) (src, typeOfSrc, context) -> {
-                var color = vectorToString(src);
-
-                return new JsonPrimitive(color);
-            }).create();
-
-//
 //            try {
 //                var reader = createFileWriter(targetDir.resolve("data.json"));
 //                reader.append(gson.toJson(variants));
@@ -334,7 +334,11 @@ public class SVModel extends Model {
 
         var defaultTRMMT = TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(trmdl.materials(0), "Material name was null"))));
 
-        createMaterials(Stream.of(defaultTRMMT)).get(0).forEach((k, v) -> {
+        var eye_highlight = Files.walk(modelDir, 1).filter(a -> a.toString().contains("eye_msk") && a.toString().endsWith("png")).findAny();
+
+        var main = createMaterials(Stream.of(defaultTRMMT), eye_highlight).get(0);
+
+        main.forEach((k, v) -> {
             materials.put(k, v.toApiMaterial(modelDir, k));
         });
 
@@ -346,7 +350,7 @@ public class SVModel extends Model {
             var trmtrs = IntStream.range(0, mtt.materialNameLength()).mapToObj(mtt::materialName).map(a -> TRMTR.getRootAsTRMTR(read(modelDir.resolve(Objects.requireNonNull(a, "Material name was null"))))).toList();
 
 
-            var materials = createMaterials(trmtrs.isEmpty() ? Stream.of(defaultTRMMT) : trmtrs.stream());
+            var materials = createMaterials(trmtrs.isEmpty() ? Stream.of(defaultTRMMT) : trmtrs.stream(), eye_highlight);
 
             var materialProperties = IntStream.range(0, mtt.materialPropertiesLength()).mapToObj(mtt::materialProperties).collect(Collectors.toMap(MaterialProperties::name, materialProperties1 -> {
                 var tracm = TRACM.getRootAsTRACM(materialProperties1.tracm().bytebufferAsByteBuffer());
@@ -367,18 +371,20 @@ public class SVModel extends Model {
             return new Generic(materialProperties, materials);
         })));
 
-        var regularPair = new GlbReader.Pair<>("normal", new Generic(new HashMap<>(), createMaterials(Stream.of(defaultTRMMT))));
+        var regularPair = new GlbReader.Pair<>("normal", new Generic(new HashMap<>(), createMaterials(Stream.of(defaultTRMMT), eye_highlight)));
 
 
         if(map.size() == 1 && map.containsKey("rare")) {
             map.put(regularPair.left(), regularPair.right());
         }
 
+        writeToClipboard(gson.toJson(map));
 
-        Files.writeString(targetDir.getParent().resolve(modelDir.getFileName() + "_materials.json"), new GsonBuilder().setPrettyPrinting().create().toJson(map));
+//        Files.writeString(targetDir.getParent().resolve(modelDir.getFileName() + "_materials.json"), new GsonBuilder().setPrettyPrinting().create().toJson(map));
 
 
         map.forEach((variantBase, data) -> {
+            System.out.println("Rawr: " + variantBase);
             var correctedVariantBase = variantBase.equals("rare") ? "shiny" : variantBase;
 
             var material = data.materials().get(0);
@@ -481,7 +487,7 @@ public class SVModel extends Model {
     }
 
 
-    private List<Map<String, Material>> createMaterials(Stream<TRMTR> trmtrStream) {
+    private List<Map<String, Material>> createMaterials(Stream<TRMTR> trmtrStream, Optional<Path> highlight) {
         return trmtrStream.map(a -> IntStream.range(0, a.materialsLength()).mapToObj(a::materials).collect(Collectors.toMap(gg.generations.imct.read.scvi.flatbuffers.Titan.Model.Material::name, material -> {
 
             var floatParmeters = IntStream.range(0, material.floatParameterLength()).mapToObj(material::floatParameter).collect(Collectors.<FloatParameter, String, Float>toMap(FloatParameter::floatName, FloatParameter::floatValue));
@@ -490,6 +496,7 @@ public class SVModel extends Model {
             IntStream.range(0, material.shadersLength()).mapToObj(material::shaders).forEach(shader -> shaderParameters.put(shader.shaderName(), IntStream.range(0, shader.shaderValuesLength()).mapToObj(shader::shaderValues).collect(Collectors.toMap(StringParameter::stringName, StringParameter::stringValue))));
 
             var textures = IntStream.range(0, material.texturesLength()).mapToObj(material::textures).collect(Collectors.toMap(Texture::textureName, texture -> texture.textureFile().replace(".bntx", ".png")));
+            if(material.name().contains("eye") && highlight.isPresent()) textures.put("HighlightMaskMap", highlight.get().toString());
 
             var vectors = IntStream.range(0, material.float4ParameterLength()).mapToObj(material::float4Parameter).collect(Collectors.toMap(Float4Parameter::colorName, param -> new Vector4f(param.colorValue().r(), param.colorValue().g(), param.colorValue().b(), param.colorValue().a())));
 
@@ -506,15 +513,19 @@ public class SVModel extends Model {
             }
 
             // Create a new file
-            Files.createFile(filePath);
-            System.out.println("File created at path: " + filePath);
+//            Files.createFile(filePath, FileOp);
+//            System.out.println("File created at path: " + filePath);
 
             // Create a BufferedWriter for the new file
-            return Files.newBufferedWriter(filePath, StandardOpenOption.WRITE);
+            return Files.newBufferedWriter(filePath, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
 
         } catch (IOException e) {
             throw new RuntimeException("Error while processing file at path: " + filePath, e);
         }
+    }
+
+    public static void writeToClipboard(String text) throws IOException {
+        Files.writeString(Path.of("materials.json"), text);
     }
 
     public record Material(Map<String, Float> floatParmeters, Map<String, Map<String, String>> shaderParameters, Map<String, String> textures, Map<String, Vector4f> vectors) {
@@ -536,18 +547,34 @@ public class SVModel extends Model {
                 return new ApiMaterial(key, textures, values);
             }
 
-            values.put("shader", processShaderType(shaderParameters));
+            if(shaderParameters.containsKey("Unlit")) values.put("useLight", false);
 
-            values.put("useLight", !shaderParameters.containsKey("Unlit"));
+            var isSolid = true;
 
-            if (this.vectors.containsKey("BaseColorLayer1")) values.put("baseColor1", color("BaseColorLayer1", this.vectors, propertyRemap));
-            if (this.vectors.containsKey("BaseColorLayer2")) values.put("baseColor2", color("BaseColorLayer2", this.vectors, propertyRemap));
-            if (this.vectors.containsKey("BaseColorLayer3")) values.put("baseColor3", color("BaseColorLayer3", this.vectors, propertyRemap));
-            if (this.vectors.containsKey("BaseColorLayer4")) values.put("baseColor4", color("BaseColorLayer4", this.vectors, propertyRemap));
-            if (this.vectors.containsKey("BaseColorLayer5")) values.put("baseColor5", color("BaseColorLayer5", this.vectors, propertyRemap));
+            if (this.vectors.containsKey("BaseColorLayer1")) {
+                isSolid = false;
+                values.put("baseColor1", color("BaseColorLayer1", this.vectors, propertyRemap));
+            }
+            if (this.vectors.containsKey("BaseColorLayer2")) {
+                isSolid = false;
+                values.put("baseColor2", color("BaseColorLayer2", this.vectors, propertyRemap));
+            }
+            if (this.vectors.containsKey("BaseColorLayer3")) {
+                isSolid = false;
+                values.put("baseColor3", color("BaseColorLayer3", this.vectors, propertyRemap));
+            }
+            if (this.vectors.containsKey("BaseColorLayer4")) {
+                isSolid = false;
+                values.put("baseColor4", color("BaseColorLayer4", this.vectors, propertyRemap));
+            }
+            if (this.vectors.containsKey("BaseColorLayer5")) {
+                isSolid = false;
+                values.put("baseColor5", color("BaseColorLayer5", this.vectors, propertyRemap));
+            }
             if (this.floatParmeters().containsKey("EmissionIntensityLayer1")) {
                 var intensity = this.floatParmeters().get("EmissionIntensityLayer1");
                 if(intensity != 0.0) {
+                    isSolid = false;
                     values.put("emiIntensity1", intensity);
                     if (this.vectors.containsKey("EmissionColorLayer1")) values.put("emiColor1", color("EmissionColorLayer1", this.vectors, propertyRemap));
                 }
@@ -555,6 +582,7 @@ public class SVModel extends Model {
             if (this.floatParmeters().containsKey("EmissionIntensityLayer2")) {
                 var intensity = this.floatParmeters().get("EmissionIntensityLayer2");
                 if(intensity != 0.0) {
+                    isSolid = false;
                     values.put("emiIntensity2", intensity);
                     if (this.vectors.containsKey("EmissionColorLayer2")) values.put("emiColor2", color("EmissionColorLayer2", this.vectors, propertyRemap));
                 }
@@ -562,6 +590,7 @@ public class SVModel extends Model {
             if (this.floatParmeters().containsKey("EmissionIntensityLayer3")) {
                 var intensity = this.floatParmeters().get("EmissionIntensityLayer3");
                 if(intensity != 0.0) {
+                    isSolid = false;
                     values.put("emiIntensity3", intensity);
                     if (this.vectors.containsKey("EmissionColorLayer3")) values.put("emiColor3", color("EmissionColorLayer3", this.vectors, propertyRemap));
                 }
@@ -569,6 +598,7 @@ public class SVModel extends Model {
             if (this.floatParmeters().containsKey("EmissionIntensityLayer4")) {
                 var intensity = this.floatParmeters().get("EmissionIntensityLayer4");
                 if(intensity != 0.0) {
+                    isSolid = false;
                     values.put("emiIntensity4", intensity);
                     if (this.vectors.containsKey("EmissionColorLayer4")) values.put("emiColor4", color("EmissionColorLayer4", this.vectors, propertyRemap));
                 }
@@ -576,6 +606,7 @@ public class SVModel extends Model {
             if (this.floatParmeters().containsKey("EmissionIntensityLayer5")) {
                 var intensity = this.floatParmeters().get("EmissionIntensityLayer5");
                 if(intensity != 0.0) {
+                    isSolid = false;
                     values.put("emiIntensity5", intensity);
                     if (this.vectors.containsKey("EmissionColorLayer5")) values.put("emiColor5", color("EmissionColorLayer5", this.vectors, propertyRemap));
                 }
@@ -585,11 +616,13 @@ public class SVModel extends Model {
             if (this.textures().containsKey("LayerMaskMap")) textures.add(new ApiTexture("layer", source.resolve(this.textures.get("LayerMaskMap")).toString()));
             if (this.textures().containsKey("HighlightMaskMap")) textures.add(new ApiTexture("mask", source.resolve(this.textures.get("HighlightMaskMap")).toString()));
 
+            values.put("shader", processShaderType(shaderParameters, isSolid));
+
             return new ApiMaterial(key, textures, values);
         }
 
-        private String processShaderType(Map<String, Map<String, String>> shaderParameters) {
-            return "layered";
+        private String processShaderType(Map<String, Map<String, String>> shaderParameters, boolean isSolid) {
+            return isSolid ? "solid": "layered";
         }
     }
 

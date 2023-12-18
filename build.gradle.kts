@@ -14,7 +14,7 @@ repositories {
 }
 
 dependencies {
-    implementation("gg.generations:RareCandy:2.4.18-SNAPSHOT"){isTransitive = false}
+    implementation("gg.generations:RareCandy:2.4.25-SNAPSHOT"){isTransitive = false}
 
     implementation("org.tukaani", "xz", "1.9")
     implementation("org.joml", "joml", "1.10.5")
@@ -43,7 +43,6 @@ dependencies {
     implementation("com.thebombzen:jxlatte:1.1.2")
 
     implementation("org.apache.commons", "commons-compress", "1.24.0")
-    implementation("com.thebombzen:jxlatte:1.1.0")
 
     implementation("de.javagl:jgltf-model:2.0.4-SNAPSHOT")
 
