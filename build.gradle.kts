@@ -44,13 +44,12 @@ dependencies {
 
     implementation("org.apache.commons", "commons-compress", "1.24.0")
 
-//    implementation("de.javagl:jgltf-model:2.0.4-SNAPSHOT")
+    implementation("de.javagl:jgltf-model:2.0.5")
+    implementation("de.javagl:jgltf-impl-v2:2.0.5")
+    implementation("de.javagl:jgltf-model-builder:2.0.5")
 
     implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
 
-    implementation(fileTree("libs") {
-        include("*.jar")
-    })
 
     implementation("com.google.flatbuffers", "flatbuffers-java", "23.3.3")
     implementation ("com.google.code.gson:gson:2.10.1")
