@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +33,7 @@ import java.util.stream.Collectors;
 public class GlbReader {
     private static Gson gson = new GsonBuilder().setPrettyPrinting().create();
     public static void main(String[] args) {
-        read(Path.of("C:\\Users\\water\\Documents\\nimbleaf.glb"));
+        read(Path.of("C:\\Users\\water\\Downloads\\fridge.glb"));
     }
 
     public static record Material(String name, String image) {}
@@ -51,36 +52,17 @@ public class GlbReader {
 
             var materials = gltf.getMaterialModels().stream().map(a -> (MaterialModelV2) a).map(a -> new Material(a.getName(), a.getBaseColorTexture().getImageModel().getName().replace(".tga", "") + ".png")).toList();
 
-            var variants =(((List<Map<String, String>>)((Map<String, Object>) gltf.getExtensions().get("KHR_materials_variants")).get("variants"))).stream().map(a -> a.get("name")).toList();
-
             var defaultVariant = new HashMap<String, String>();
-
-            var variantMap = variants.stream().collect(Collectors.toMap(a -> a, a -> new HashMap<String, String>()));
 
             for(var mesh : gltf.getMeshModels()) {
                 if(mesh.getName().endsWith("Iris")) continue;
 
                 defaultVariant.put(mesh.getName(), mesh.getMeshPrimitiveModels().get(0).getMaterialModel().getName());
-
-                ((List<Map<String, Object>>) ((Map<String, Object>) mesh.getMeshPrimitiveModels().get(0).getExtensions().get("KHR_materials_variants")).get("mappings")).forEach(new Consumer<Map<String, Object>>() {
-                    @Override
-                    public void accept(Map<String, Object> map) {
-                        var material = materials.get((int) map.get("material")).name();
-                        var variants1 = ((List<Integer>) map.get("variants")).stream().map(variants::get).toList();
-
-                        variants1.forEach(new Consumer<String>() {
-                            @Override
-                            public void accept(String s) {
-                                variantMap.get(s).put(mesh.getName(), material);
-                            }
-                        });
-                    }
-                });
             }
 
             var p = Path.of("output1").resolve(path.getFileName().toString().replace(".glb", ""));
 
-            if(Files.notExists(p)) Files.createDirectories(path);
+            if(Files.notExists(p)) Files.createDirectories(p);
 
             images.values().forEach(texture -> {
                 try {
@@ -109,7 +91,7 @@ public class GlbReader {
 
 
             var variantJson = new JsonObject();
-            variantMap.forEach((s, stringStringHashMap) -> variantJson.add(s, defaultVarint(stringStringHashMap)));
+            variantJson.add("regular", new JsonObject());
             config.add("variants", variantJson);
 
             var string = gson.toJson(config);
@@ -144,7 +126,7 @@ public class GlbReader {
     public static Pair<GltfModel, Double> strip(DefaultGltfModel gltf) {
         var sceneModel = new DefaultSceneModel();
 
-        var pair = calculateSkin(gltf.getSkinModel(0), sceneModel);
+        var pair = calculateSkin(sceneModel);
 
         var max = 0d;
         var min = 0d;
@@ -177,51 +159,42 @@ public class GlbReader {
             var nodeModel = new DefaultNodeModel();
             nodeModel.setName(mesh.getName());
             nodeModel.addMeshModel(meshModel);
-            nodeModel.setSkinModel(pair.right());
+//            nodeModel.setSkinModel(pair.right());
             pair.left().addChild(nodeModel);
         }
 
         var gltfModelBuilder = GltfModelBuilder.create();
-        gltfModelBuilder.addSkinModel(pair.right());
+//        gltfModelBuilder.addSkinModel(pair.right());
         gltfModelBuilder.addSceneModel(sceneModel);
 
         return new Pair<>(gltfModelBuilder.build(), (1f/ (max - min)));
     }
 
-    private static Pair<DefaultNodeModel, DefaultSkinModel> calculateSkin(DefaultSkinModel skin, DefaultSceneModel sceneModel) {
+    private static Pair<DefaultNodeModel, DefaultSkinModel> calculateSkin(DefaultSceneModel sceneModel) {
 
-        var rootNode = skin.getJoints().get(0);
-
-        while(rootNode.getParent() != null)
-            rootNode = rootNode.getParent();
-
-        var root = (DefaultNodeModel) rootNode;
-
-        var newSkin = new DefaultSkinModel();
+//        var newSkin = new DefaultSkinModel();
         var newRoot = new DefaultNodeModel();
 
-        populate(root, newRoot, newSkin, true);
+//        var ibmBuffer = FloatBuffer.allocate(16 * (newSkin.getJoints().size()));
 
-        var ibmBuffer = FloatBuffer.allocate(16 * (newSkin.getJoints().size()));
+//        var arr = new float[16];
 
-        var arr = new float[16];
+//        var matrix = new Matrix4f();
 
-        var matrix = new Matrix4f();
-
-        List<NodeModel> joints = newSkin.getJoints();
-        for (NodeModel jointNode : joints) {
-            matrix.set(jointNode.computeGlobalTransform(null)).invert();
-            matrix.get(arr);
-            ibmBuffer.put(arr);
-        }
-
-        ibmBuffer.rewind();
-
-        newSkin.setInverseBindMatrices(AccessorModels.create(GltfConstants.GL_FLOAT, "MAT4", false, Buffers.createByteBufferFrom(ibmBuffer)));
+//        List<NodeModel> joints = newSkin.getJoints();
+//        for (NodeModel jointNode : joints) {
+//            matrix.set(jointNode.computeGlobalTransform(null)).invert();
+//            matrix.get(arr);
+//            ibmBuffer.put(arr);
+//        }
+//
+//        ibmBuffer.rewind();
+//
+//        newSkin.setInverseBindMatrices(AccessorModels.create(GltfConstants.GL_FLOAT, "MAT4", false, Buffers.createByteBufferFrom(ibmBuffer)));
 
         sceneModel.addNode(newRoot);
 
-        return new Pair<DefaultNodeModel, DefaultSkinModel>(newRoot, newSkin);
+        return new Pair<DefaultNodeModel, DefaultSkinModel>(newRoot, null);
     }
 
     private static void populate(DefaultNodeModel root, DefaultNodeModel newRoot, DefaultSkinModel newSkin, boolean isRoot) {
