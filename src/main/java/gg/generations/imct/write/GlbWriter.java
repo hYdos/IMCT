@@ -15,6 +15,8 @@ import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.api.ApiTexture;
 import gg.generations.imct.api.Mesh;
 import gg.generations.imct.api.Model;
+import gg.generations.imct.read.UvGenerate;
+import gg.generations.imct.read.letsgo.LGModel;
 import gg.generations.imct.read.scvi.ImageDisplayComponent;
 import gg.generations.imct.scvi.flatbuffers.Titan.Model.graph.EyeTextureGenerator;
 import gg.generations.rarecandy.pokeutils.PixelAsset;
@@ -113,7 +115,9 @@ public class GlbWriter {
 
             Files.writeString(path.resolve("config.json"), generateJson(scale, model.materials, model.variants, model.meshes));
 //
-            model.materials.values().stream().flatMap(a -> a.textures().stream()).map(a -> a.filePath()).distinct().forEach(texture -> {
+            model.materials.values().stream().flatMap(a -> a.textures().stream()).map(ApiTexture::filePath).distinct().forEach(texture -> {
+
+
                 var target = Path.of(texture);
 
                 try {
@@ -154,7 +158,15 @@ public class GlbWriter {
     private static String generateJson(double scale, Map<String, ApiMaterial> materials, Map<String, Map<String, String>> variants, List<Mesh> meshes) {
         var materialsJson = materials.entrySet().stream().collect(Collectors.toMap(a -> a.getValue(), a -> a.getKey()));
 
-        var meshMap = meshes.stream().collect(Collectors.toMap(a -> a.name(), a -> a.material()));
+        System.out.println("Meshes");
+
+        Map<String, String> meshMap = new HashMap<>();
+        for (Mesh x : meshes) {
+            System.out.println(x.name());
+            if (meshMap.put(x.name(), x.material()) != null) {
+                throw new IllegalStateException("Duplicate key");
+            }
+        }
 
         var json = new JsonObject();
 
@@ -217,10 +229,15 @@ public class GlbWriter {
             for(var mesh : data.keySet()) {
                 var material = data.get(mesh);
 
-                if(!meshMap.get(mesh).equals(material)) {
-                    var variantJson = new JsonObject();
-                    variantJson.addProperty("material", material);
-                    a.add(mesh, variantJson);
+                try {
+
+                    if (!meshMap.get(mesh).equals(material)) {
+                        var variantJson = new JsonObject();
+                        variantJson.addProperty("material", material);
+                        a.add(mesh, variantJson);
+                    }
+                } catch (Exception e) {
+                    System.out.println();
                 }
             }
 

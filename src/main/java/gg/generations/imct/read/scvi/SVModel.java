@@ -615,6 +615,8 @@ public class SVModel extends Model {
             if (this.textures().containsKey("BaseColorMap")) textures.add(new ApiTexture("diffuse", source.resolve(this.textures.get("BaseColorMap")).toString()));
             if (this.textures().containsKey("LayerMaskMap")) textures.add(new ApiTexture("layer", source.resolve(this.textures.get("LayerMaskMap")).toString()));
             if (this.textures().containsKey("HighlightMaskMap")) textures.add(new ApiTexture("mask", source.resolve(this.textures.get("HighlightMaskMap")).toString()));
+            if (this.textures().containsKey("UpperEyelidColorMap")) textures.add(new ApiTexture("upper_eyelid", source.resolve(this.textures.get("UpperEyelidColorMap")).toString()));
+            if (this.textures().containsKey("LowerEyelidColorMap")) textures.add(new ApiTexture("lower_eyelid", source.resolve(this.textures.get("LowerEyelidColorMap")).toString()));
 
             values.put("shader", processShaderType(shaderParameters, isSolid));
 

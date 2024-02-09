@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 public class GlbReader {
     private static Gson gson = new GsonBuilder().setPrettyPrinting().create();
     public static void main(String[] args) {
-        read(Path.of("C:\\Users\\water\\Downloads\\fridge.glb"));
+        read(Path.of("C:\\Users\\water\\Documents\\zygrade_cell.glb"));
     }
 
     public static record Material(String name, String image) {}

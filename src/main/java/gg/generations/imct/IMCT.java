@@ -34,7 +34,7 @@ public class IMCT {
 
                 var output = GlbWriter.loading.resolve(input.getFileName()).toAbsolutePath();
 
-                GlbWriter.write(input, SVModel::new, output);
+                GlbWriter.write(input, SWSHModel::new, output);
 
                 pairConsumer.accept(new Pair<>(output, new PixelAsset(output)));
             } catch (Exception e) {
@@ -108,7 +108,7 @@ public class IMCT {
 
     public static void write(Path path) {
         try {
-            var oput = Paths.get("output4/" + path.getFileName().toString());
+            var oput = Paths.get("output/" + path.getFileName().toString());
         GlbWriter.write(path, SWSHModel::new, oput);
 
 //            deleteFolder(oput);

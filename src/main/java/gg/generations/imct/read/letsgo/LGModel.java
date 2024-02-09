@@ -37,7 +37,7 @@ public class LGModel extends Model {
 
     private static final InputNode eyes = eyes();
 
-    private static final UvGenerate generator = new UvGenerate(512, 512);
+    public static final UvGenerate generator = new UvGenerate(512, 512);
 
     private static InputNode layerEyes() {
         var pupil = new MirrorNode().setMirrrLeft(true).setInput(new TileNode().setTiling(1, 4).setInput(bottom));
