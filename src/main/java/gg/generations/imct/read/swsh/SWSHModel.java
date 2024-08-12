@@ -1,5 +1,7 @@
 package gg.generations.imct.read.swsh;
 
+import de.javagl.jgltf.model.NodeModel;
+import de.javagl.jgltf.model.impl.AbstractNamedModelElement;
 import de.javagl.jgltf.model.impl.DefaultNodeModel;
 import gg.generations.imct.api.ApiMaterial;
 import gg.generations.imct.api.ApiTexture;
@@ -24,6 +26,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class SWSHModel extends Model {
@@ -129,26 +132,27 @@ public class SWSHModel extends Model {
         for (int i = 0; i < gfbmdl.bonesLength(); i++) {
             var bone = gfbmdl.bones(i);
 
-            var rawRotation = toVec3(bone.rotation());
-            var b = new Bone(
-                    bone.name(),
-                    toVec3(bone.translation()),
-                    new Quaternionf().rotateLocalX(rawRotation.x).rotateLocalY(rawRotation.y).rotateLocalZ(rawRotation.z),
-                    toVec3(bone.scale()),
-                    bone.parent(),
-                    bone.rigidCheck() == null,
-                    bone.boneType(),
-                    new ArrayList<>()
-            );
+            if(true) {
 
-            bones.add(b);
+                var rawRotation = toVec3(bone.rotation());
+                var b = new Bone(
+                        bone.name(),
+                        toVec3(bone.translation()),
+                        new Quaternionf().rotateLocalX(rawRotation.x).rotateLocalY(rawRotation.y).rotateLocalZ(rawRotation.z),
+                        toVec3(bone.scale()),
+                        bone.parent(),
+                        bone.rigidCheck() == null,
+                        bone.boneType(),
+                        new ArrayList<>()
+                );
 
-            var local = -1;
+                bones.add(b);
 
-            if(b.hasSkinning) {
-                joints.add(i);
+                if (b.hasSkinning) {
+                    joints.add(i);
+                    System.out.println("Bit: " + i + " " + b.name + " " + b.type);
+                }
             }
-
         }
 
         // Second bone pass. Add children
@@ -181,25 +185,25 @@ public class SWSHModel extends Model {
         for (int i = 0; i < skeleton.size(); i++) {
             var node = skeleton.get(i);
             var bone = bones.get(i);
-            if (bone.parent == -1) continue;
+            if (bone.parent == -1) {
+                continue;
+            }
             var parent = skeleton.get(bone.parent);
             parent.addChild(node);
         }
 
-        this.joints = joints.stream().map(skeleton::get).toList();
+        this.joints = joints.stream().map(skeleton::get).collect(Collectors.toCollection(ArrayList::new));
 
-//        var root = skeleton.stream().filter(a -> a.getName().equals("Origin")).findFirst();
+        System.out.println("Max1 " + this.joints.stream().map(a -> a.getName()).toList());
+
+//        var current = this.joints.get(0).getParent();
 //
-//        if(root.isEmpty()) {
-//            throw new RuntimeException("Origin not found!");
-//        } else {
-//            this.root = root.get();
+//        while (current != null) {
+//            this.joints.add((DefaultNodeModel) current);
+//
+//            current = current.getParent();
 //        }
-
-//        System.out.println();
     }
-
-//    IntStream.range(0, material.colorsLength()).mapToObj(a -> material.colors(a)).collect(Collectors.toMap(a -> a.name(), a -> new Vector3f(a.color().r(), a.color().g(), a.color().b())))
 
     private void genMaterials(gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model gfbmdl, Path modelDir, Path targetDir, Map<String, String> shinyMap, Set<String> uvMapsToGen, Map<String, String> shinyMaterials) {
 
@@ -357,6 +361,8 @@ public class SWSHModel extends Model {
     private void genMeshes(gg.generations.imct.read.swsh.flatbuffers.Gfbmdl.Model gfbmdl, Set<String> uvMapsToGen, Path targetDir, HashMap<String, String> shinyMaterialMap) {
         var meshProxies = new HashMap<String, Map<String, MeshProxy>>();
 
+        var list = new ArrayList<List<Integer>>();
+
         for (int i = 0; i < gfbmdl.groupsLength(); i++) {
             var group = gfbmdl.groups(i);
             var name = gfbmdl.bones((int) group.boneIndex()).name();
@@ -458,7 +464,7 @@ public class SWSHModel extends Model {
                 }
             }
 
-
+            list.add(boneIds.stream().flatMapToInt(a -> IntStream.of(a.x, a.y, a.z, a.w)).distinct().boxed().toList());
 
             for (int j = 0; j < meshGroup.polygonsLength(); j++) {
                 var mesh = meshGroup.polygons(j);
@@ -479,8 +485,10 @@ public class SWSHModel extends Model {
                 meshes.add(new Mesh(meshId, materialId, indices, positions, normals, tangents, colors, weights, boneIds, biNormals, uvs));
             }
 
+
 //            System.out.println(name + " " + Arrays.toString(boneIds.stream().flatMapToInt(a -> IntStream.of(a.x, a.y, a.z, a.w)).distinct().sorted().toArray()));
         }
+        System.out.println("Max2: " + list.stream().flatMapToInt(a -> a.stream().mapToInt(Integer::intValue)).distinct().sorted().boxed().count());
     }
 
     public record MeshProxy(String name, String materialId, List<Integer> indices, List<Vector3f> positions, List<Vector3f> normals, List<Vector4f> tangents, List<Vector4f> colors, List<Vector4f> weights, List<Vector4i> boneIds, List<Vector3f> biNormals, List<Vector2f> uvs) {};

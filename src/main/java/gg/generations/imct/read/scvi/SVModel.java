@@ -390,50 +390,53 @@ public class SVModel extends Model {
             var material = data.materials().get(0);
 
             if(data.materialProperties() != null && !data.materialProperties().isEmpty()) {
-                var amount = data.materialProperties().entrySet().stream().flatMap(a -> a.getValue().tracks().values().stream()).map(a -> a.values()).flatMap(a -> a.stream()).flatMap(a -> a.animTracks().values().stream()).mapToInt(a -> a.size()).max().getAsInt();
+                var amount = data.materialProperties().entrySet().stream().flatMap(a -> a.getValue().tracks().values().stream()).map(Map::values).flatMap(Collection::stream).flatMap(a -> a.animTracks().values().stream()).mapToInt(List::size).max();
 
+                if(amount.isPresent()) {
 //                    var properties = data.materialProperties().get("color").tracks().entrySet().stream().collect(Collectors.toMap(a -> a.getKey(), a -> a.getValue().entrySet().stream().collect(Collectors.toMap(b -> b.getKey(), b -> b.getValue().animTracks))));
 
-                var map1 = data.materialProperties().get("color").tracks().entrySet().stream().map(a -> a.getValue()).flatMap(a -> a.entrySet().stream()).map(a -> new GlbReader.Pair<String, Map<String, List<String>>>(a.getKey(), a.getValue().animTracks())).collect(Collectors.toMap(GlbReader.Pair::left, a -> a.right(), (a, b) -> a));
-                var properties = transformMap(map1, amount);
+                    var map1 = data.materialProperties().get("color").tracks().entrySet().stream().map(a -> a.getValue()).flatMap(a -> a.entrySet().stream()).map(a -> new GlbReader.Pair<String, Map<String, List<String>>>(a.getKey(), a.getValue().animTracks())).collect(Collectors.toMap(GlbReader.Pair::left, a -> a.right(), (a, b) -> a));
+                    var properties = transformMap(map1, amount.getAsInt());
 
 
-                for (int j = 0; j < amount; j++) {
-                    var materialProxies = new HashMap<String, String>();
+                    for (int j = 0; j < amount.getAsInt(); j++) {
+                        var materialProxies = new HashMap<String, String>();
 
-                    for (Map.Entry<String, Material> entry : material.entrySet()) {
-                        String materialName = entry.getKey();
-                        Material v = entry.getValue();
-                        var meshName = materialRemap.get(materialName);
+                        for (Map.Entry<String, Material> entry : material.entrySet()) {
+                            String materialName = entry.getKey();
+                            Material v = entry.getValue();
+                            var meshName = materialRemap.get(materialName);
 
-                        if (meshName == null) throw new RuntimeException("Material needs mesh!");
-
-
-                        var m = properties.get(j).get(materialName);
-
-                        var mat = v.toApiMaterial(modelDir, materialName, m);
-
-                        var existing = materials.entrySet().stream().filter(a -> a.getValue().equals(mat)).findAny();
+                            if (meshName == null) throw new RuntimeException("Material needs mesh!");
 
 
-                        var materialNameFinal = variantBase + "_" + materialName;
+                            var m = properties.get(j).get(materialName);
 
-                        if (existing.isEmpty()) {
-                            materials.put(variantBase, mat);
-                        } else {
-                            variantBase = existing.get().getKey();
+                            var mat = v.toApiMaterial(modelDir, materialName, m);
+
+                            var existing = materials.entrySet().stream().filter(a -> a.getValue().equals(mat)).findAny();
+
+
+                            var materialNameFinal = variantBase + "_" + materialName;
+
+                            if (existing.isEmpty()) {
+                                materials.put(variantBase, mat);
+                            } else {
+                                variantBase = existing.get().getKey();
+                            }
+
+
+                            for (String name : meshName) {
+                                materialProxies.put(name, variantBase);
+                            }
+
                         }
-
-
-                        for (String name : meshName) {
-                            materialProxies.put(name, variantBase);
-                        }
+                        variants.put(correctedVariantBase + "_" + j, materialProxies);
 
                     }
-                    variants.put(correctedVariantBase + "_" + j, materialProxies);
-
+                } else {
+                    System.out.println();
                 }
-
             } else {
 
                 var materialProxies = new HashMap<String, String>();
@@ -926,7 +929,11 @@ public class SVModel extends Model {
 //    }
 
     public static String color(float red, float green, float blue) {
-        return Integer.toHexString(new Color((int) (rgbTosRGB(red) * 255), (int) (rgbTosRGB(green) * 255), (int) (rgbTosRGB(blue) * 255)).getRGB()).replaceFirst("ff", "#");
+        return Integer.toHexString(new Color((int) clamp(rgbTosRGB(red) * 255), (int) clamp(rgbTosRGB(green) * 255), (int) clamp(rgbTosRGB(blue) * 255)).getRGB()).replaceFirst("ff", "#");
+    }
+
+    public static float clamp(float value) {
+        return Math.min(255f, Math.max(0f, value));
     }
 
     public static List<Map<String, Map<String, String>>> transformMap(Map<String, Map<String, List<String>>> inputMap, int amount) {
